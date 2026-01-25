@@ -11,6 +11,16 @@ Chips committed display: show each player’s committed amount
 implement them nicely in Ui. such that fucntionalty is fine and it slooks good also.
 
 
+Recommended UI improvements
+Show current turn: highlight the active player
+Disable actions when it’s not your turn
+Add “Set Deck Seed” and “Deal Cards” buttons after join
+Show board cards for Flop/Turn/River
+Show your hand (decrypted)
+Show chips committed per player
+Add bet amount input field
+Auto-advance phase when conditions are met (optional)
+
 
 
 Complete Game Flow After Both Players Join

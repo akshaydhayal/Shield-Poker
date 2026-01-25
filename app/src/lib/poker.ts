@@ -516,6 +516,33 @@ export class PokerClient {
     }
   }
 
+  /**
+   * Fetch all games
+   */
+  async getAllGames(): Promise<GameState[]> {
+    try {
+      const games = await this.program.account.game.all();
+      return games.map((game) => ({
+        gameId: game.account.gameId.toNumber(),
+        player1: game.account.player1,
+        player2: game.account.player2,
+        buyIn: game.account.buyIn.toNumber(),
+        potAmount: game.account.potAmount.toNumber(),
+        smallBlind: game.account.smallBlind.toNumber(),
+        bigBlind: game.account.bigBlind.toNumber(),
+        currentTurn: game.account.currentTurn,
+        phase: this.mapPhase(game.account.phase),
+        boardCards: Array.from(game.account.boardCards),
+        deckSeed: Array.from(game.account.deckSeed),
+        lastActionTs: game.account.lastActionTs.toNumber(),
+        winner: game.account.winner,
+      }));
+    } catch (error) {
+      console.error("Error fetching all games:", error);
+      return [];
+    }
+  }
+
   private mapPhase(phase: any): GamePhase {
     // Anchor enums are returned as objects like { waiting: {} } or { preFlop: {} }
     let phaseStr: string;
