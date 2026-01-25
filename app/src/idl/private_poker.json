@@ -1,5 +1,5 @@
 {
-  "address": "7t2s5A3AvsGZq8rzngZujis6khcPesjm5FYV21ARosNN",
+  "address": "6FgbJnFve4Kar7xMwjxeQNMuVdALTFm7WVU6EqJdPBwR",
   "metadata": {
     "name": "private_poker",
     "version": "0.1.0",
@@ -481,7 +481,7 @@
         },
         {
           "name": "owner_program",
-          "address": "7t2s5A3AvsGZq8rzngZujis6khcPesjm5FYV21ARosNN"
+          "address": "6FgbJnFve4Kar7xMwjxeQNMuVdALTFm7WVU6EqJdPBwR"
         },
         {
           "name": "delegation_program",

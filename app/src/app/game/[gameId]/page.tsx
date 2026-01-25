@@ -27,8 +27,6 @@ export default function GamePage() {
   const [error, setError] = useState<string | null>(null);
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [deckSeedInput, setDeckSeedInput] = useState<string>("");
-  const [player1HandInput, setPlayer1HandInput] = useState<string>("");
-  const [player2HandInput, setPlayer2HandInput] = useState<string>("");
   const [customBetAmount, setCustomBetAmount] = useState<number>(0);
 
   useEffect(() => {
@@ -151,24 +149,6 @@ export default function GamePage() {
     }
   };
 
-  const handleAdvancePhase = async () => {
-    if (!pokerClient) {
-      setError("Poker client not initialized");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const tx = await pokerClient.advancePhase(gameId);
-      console.log("Phase advanced:", tx);
-      await fetchGameState();
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || "Failed to advance phase");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSetDeckSeed = async () => {
     if (!pokerClient) {
@@ -204,32 +184,172 @@ export default function GamePage() {
     }
   };
 
+  // Generate random unique cards using deck seed
+  const generateUniqueCards = (deckSeed: number[]): { player1Hand: number[], player2Hand: number[] } => {
+    // Validate deck seed
+    if (!deckSeed || deckSeed.length !== 32) {
+      throw new Error("Invalid deck seed");
+    }
+    
+    // Create a full deck (0-51) - each card is unique
+    const deck: number[] = Array.from({ length: 52 }, (_, i) => i);
+    
+    // Initialize seed from deck seed bytes using a more robust method
+    let seed = 0;
+    for (let i = 0; i < deckSeed.length; i++) {
+      // Combine seed bytes with multiplication and addition for better distribution
+      seed = ((seed * 31) + (deckSeed[i] & 0xff)) >>> 0;
+    }
+    
+    // Ensure seed is non-zero and odd (for better LCG behavior)
+    if (seed === 0) {
+      seed = 1;
+    }
+    if (seed % 2 === 0) {
+      seed += 1;
+    }
+    
+    // Linear Congruential Generator (LCG) for seeded random
+    // Using better LCG parameters
+    const a = 1664525;
+    const c = 1013904223;
+    const m = 0x100000000; // 2^32
+    
+    const seededRandom = () => {
+      seed = ((seed * a + c) % m) >>> 0;
+      return seed / m;
+    };
+    
+    // Fisher-Yates shuffle with seeded random
+    // This guarantees each card appears exactly once
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(seededRandom() * (i + 1));
+      // Swap deck[i] and deck[j]
+      const temp = deck[i];
+      deck[i] = deck[j];
+      deck[j] = temp;
+    }
+    
+    // Verify deck still has all unique cards after shuffle
+    const deckSet = new Set(deck);
+    if (deckSet.size !== 52) {
+      throw new Error("Deck shuffle failed - duplicate cards in deck!");
+    }
+    
+    // Deal first 2 cards to player 1, next 2 to player 2
+    const player1Hand = [deck[0], deck[1]];
+    const player2Hand = [deck[2], deck[3]];
+    
+    // Final verification - this should ALWAYS pass with proper shuffle
+    const allCards = [...player1Hand, ...player2Hand];
+    const uniqueSet = new Set(allCards);
+    
+    if (uniqueSet.size !== allCards.length) {
+      const duplicates = allCards.filter((card, index) => allCards.indexOf(card) !== index);
+      console.error("CRITICAL ERROR: Duplicate cards after shuffle!", {
+        player1Hand,
+        player2Hand,
+        allCards,
+        duplicates,
+        deck: deck.slice(0, 10) // First 10 cards for debugging
+      });
+      
+      // Emergency fallback: manually select 4 unique cards
+      const selectedCards: number[] = [];
+      const usedCards = new Set<number>();
+      
+      while (selectedCards.length < 4) {
+        const randomCard = Math.floor(seededRandom() * 52);
+        if (!usedCards.has(randomCard)) {
+          selectedCards.push(randomCard);
+          usedCards.add(randomCard);
+        }
+        // Safety check to prevent infinite loop
+        if (usedCards.size > 50) {
+          throw new Error("Failed to generate unique cards after multiple attempts");
+        }
+      }
+      
+      return {
+        player1Hand: [selectedCards[0], selectedCards[1]],
+        player2Hand: [selectedCards[2], selectedCards[3]]
+      };
+    }
+    
+    // Log for debugging
+    console.log("Successfully generated unique cards:", {
+      player1Hand: player1Hand.map(c => `Card ${c} (${Math.floor(c/13)}-${c%13})`),
+      player2Hand: player2Hand.map(c => `Card ${c} (${Math.floor(c/13)}-${c%13})`),
+      allUnique: uniqueSet.size === allCards.length
+    });
+    
+    return { player1Hand, player2Hand };
+  };
+
   const handleDealCards = async () => {
-    if (!pokerClient) {
-      setError("Poker client not initialized");
+    if (!pokerClient || !gameState) {
+      setError("Poker client or game state not initialized");
       return;
     }
 
     try {
       setLoading(true);
-      const player1Hand = player1HandInput.split(",").map(s => parseInt(s.trim(), 10));
-      const player2Hand = player2HandInput.split(",").map(s => parseInt(s.trim(), 10));
       
-      if (player1Hand.length !== 2 || player2Hand.length !== 2) {
-        throw new Error("Each player must have exactly 2 cards");
+      // Check if deck seed is set, if not use a random one
+      let seedToUse = gameState.deckSeed;
+      if (!seedToUse || seedToUse.every((b: number) => b === 0)) {
+        // Generate a random seed if not set
+        seedToUse = Array.from(crypto.getRandomValues(new Uint8Array(32)));
+        console.log("Deck seed was not set, using random seed:", seedToUse);
+        
+        // Set the seed first
+        const seedTx = await pokerClient.setDeckSeed(gameId, seedToUse);
+        console.log("Random seed set:", seedTx);
+        
+        // Wait a bit for the transaction to confirm
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Refresh game state
+        await fetchGameState();
       }
       
-      for (const card of [...player1Hand, ...player2Hand]) {
-        if (isNaN(card) || card < 0 || card > 51) {
-          throw new Error("Card values must be between 0 and 51");
+      // Generate unique random cards based on deck seed
+      const { player1Hand, player2Hand } = generateUniqueCards(seedToUse);
+      
+      // Double-check uniqueness before sending
+      const allCards = [...player1Hand, ...player2Hand];
+      const uniqueCards = new Set(allCards);
+      
+      if (uniqueCards.size !== allCards.length) {
+        console.error("Duplicate cards detected:", {
+          player1Hand,
+          player2Hand,
+          allCards,
+          duplicates: allCards.filter((card, index) => allCards.indexOf(card) !== index)
+        });
+        throw new Error("Failed to generate unique cards. Please try again.");
+      }
+      
+      // Validate card values are in valid range
+      for (const card of allCards) {
+        if (card < 0 || card > 51 || !Number.isInteger(card)) {
+          throw new Error(`Invalid card value: ${card}. Cards must be integers between 0 and 51.`);
         }
       }
       
+      console.log("Dealing cards:", {
+        player1Hand,
+        player2Hand,
+        allCards,
+        unique: true
+      });
+      
       const tx = await pokerClient.dealCards(gameId, player1Hand, player2Hand);
-      console.log("Cards dealt:", tx);
+      console.log("Cards dealt successfully:", tx);
       await fetchGameState();
       setError(null);
     } catch (err: any) {
+      console.error("Error dealing cards:", err);
       setError(err.message || "Failed to deal cards");
     } finally {
       setLoading(false);
@@ -431,35 +551,16 @@ export default function GamePage() {
                (!player1State?.hand || player1State.hand.every(c => c === 0)) && (
                 <div className="bg-purple-500/20 rounded-lg p-4 border border-purple-400">
                   <h3 className="text-lg font-semibold text-white mb-3">🃏 Deal Cards</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-white/80 text-sm mb-1">Player 1 Hand (2 cards, comma-separated, 0-51)</label>
-                      <input
-                        type="text"
-                        value={player1HandInput}
-                        onChange={(e) => setPlayer1HandInput(e.target.value)}
-                        placeholder="e.g., 0, 1"
-                        className="w-full bg-white/10 border border-white/20 rounded px-4 py-2 text-white text-sm"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-white/80 text-sm mb-1">Player 2 Hand (2 cards, comma-separated, 0-51)</label>
-                      <input
-                        type="text"
-                        value={player2HandInput}
-                        onChange={(e) => setPlayer2HandInput(e.target.value)}
-                        placeholder="e.g., 2, 3"
-                        className="w-full bg-white/10 border border-white/20 rounded px-4 py-2 text-white text-sm"
-                      />
-                    </div>
-                    <button
-                      onClick={handleDealCards}
-                      disabled={loading}
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-                    >
-                      Deal Cards
-                    </button>
-                  </div>
+                  <p className="text-white/80 text-sm mb-4">
+                    Cards will be automatically generated from the deck seed to ensure uniqueness and randomness.
+                  </p>
+                  <button
+                    onClick={handleDealCards}
+                    disabled={loading}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded disabled:opacity-50"
+                  >
+                    {loading ? "Dealing Cards..." : "Deal Random Cards"}
+                  </button>
                 </div>
               )}
 
@@ -649,23 +750,6 @@ export default function GamePage() {
                   </div>
                 )}
 
-              {/* Advance Phase Button */}
-              {gameState.phase !== GamePhase.Waiting &&
-                gameState.phase !== GamePhase.Finished &&
-                gameState.phase !== GamePhase.Showdown && (
-                  <div className="text-center">
-                    <button
-                      onClick={handleAdvancePhase}
-                      disabled={loading}
-                      className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50"
-                    >
-                      ⏭️ Advance to Next Phase
-                    </button>
-                    <p className="text-white/60 text-sm mt-2">
-                      (Click when both players have acted)
-                    </p>
-                  </div>
-                )}
 
               {/* Game Finished */}
               {gameState.phase === GamePhase.Finished && gameState.winner && (

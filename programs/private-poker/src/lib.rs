@@ -8,7 +8,7 @@ use ephemeral_rollups_sdk::consts::PERMISSION_PROGRAM_ID;
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 
-declare_id!("7t2s5A3AvsGZq8rzngZujis6khcPesjm5FYV21ARosNN");
+declare_id!("6FgbJnFve4Kar7xMwjxeQNMuVdALTFm7WVU6EqJdPBwR");
 
 // MagicBlock Program IDs (PERMISSION_PROGRAM_ID is imported from SDK)
 use anchor_lang::solana_program::pubkey;
@@ -129,6 +129,28 @@ pub mod private_poker {
             PokerError::InvalidGamePhase
         );
 
+        // Validate cards are in valid range (0-51)
+        for card in player1_hand.iter().chain(player2_hand.iter()) {
+            require!(*card < 52, PokerError::InvalidAction);
+        }
+
+        // Validate no duplicate cards within a hand
+        require!(
+            player1_hand[0] != player1_hand[1],
+            PokerError::InvalidAction
+        );
+        require!(
+            player2_hand[0] != player2_hand[1],
+            PokerError::InvalidAction
+        );
+
+        // Validate no duplicate cards between players
+        for p1_card in player1_hand.iter() {
+            for p2_card in player2_hand.iter() {
+                require!(*p1_card != *p2_card, PokerError::InvalidAction);
+            }
+        }
+
         let player1_state = &mut ctx.accounts.player1_state;
         let player2_state = &mut ctx.accounts.player2_state;
 
@@ -159,13 +181,28 @@ pub mod private_poker {
             PokerError::InvalidGamePhase
         );
 
-        let player_state = if player == game.player1.unwrap() {
+        // Read values before getting mutable references
+        let is_player1 = player == game.player1.unwrap();
+        let player_folded = if is_player1 {
+            ctx.accounts.player1_state.has_folded
+        } else {
+            ctx.accounts.player2_state.has_folded
+        };
+        require!(!player_folded, PokerError::PlayerFolded);
+
+        // Get other player's chips_committed for call calculation (read-only)
+        let other_chips = if is_player1 {
+            ctx.accounts.player2_state.chips_committed
+        } else {
+            ctx.accounts.player1_state.chips_committed
+        };
+
+        // Now get mutable reference to player state
+        let player_state = if is_player1 {
             &mut ctx.accounts.player1_state
         } else {
             &mut ctx.accounts.player2_state
         };
-
-        require!(!player_state.has_folded, PokerError::PlayerFolded);
 
         match action {
             PlayerActionType::Fold => {
@@ -173,14 +210,15 @@ pub mod private_poker {
                 msg!("Player {} folded", player);
             }
             PlayerActionType::Check => {
+                // In single round MVP, check is allowed if chips are already equal
                 require!(
-                    game.pot_amount % 2 == 0 || game.current_turn == game.player2,
+                    player_state.chips_committed == other_chips,
                     PokerError::CannotCheck
                 );
                 msg!("Player {} checked", player);
             }
             PlayerActionType::Call => {
-                let call_amount = game.pot_amount.saturating_sub(player_state.chips_committed);
+                let call_amount = other_chips.saturating_sub(player_state.chips_committed);
                 require!(call_amount > 0, PokerError::InvalidAction);
                 player_state.chips_committed += call_amount;
                 game.pot_amount += call_amount;
@@ -217,14 +255,65 @@ pub mod private_poker {
             }
         }
 
-        // Switch turn
-        game.current_turn = if game.current_turn == game.player1 {
-            game.player2
-        } else {
-            game.player1
-        };
-
+        // Update last action timestamp
         game.last_action_ts = Clock::get()?.unix_timestamp;
+
+        // Single round MVP: Automatically advance phase after both players have acted
+        // Get current state of both players (read-only for comparison)
+        let p1_chips = ctx.accounts.player1_state.chips_committed;
+        let p2_chips = ctx.accounts.player2_state.chips_committed;
+        let p1_folded = ctx.accounts.player1_state.has_folded;
+        let p2_folded = ctx.accounts.player2_state.has_folded;
+        let was_player2_turn = player == game.player2.unwrap();
+
+        // Check if we should advance phase:
+        // 1. Someone folded -> advance immediately
+        // 2. Both players have equal chips committed AND player 2 just acted -> advance
+        let should_advance = p1_folded 
+            || p2_folded
+            || (p1_chips == p2_chips && was_player2_turn);
+
+        if should_advance {
+            // Automatically advance phase
+            match game.phase {
+                GamePhase::PreFlop => {
+                    game.phase = GamePhase::Flop;
+                    game.current_turn = game.player1;
+                    // Reveal first 3 board cards
+                    game.board_cards[0] = 1;
+                    game.board_cards[1] = 1;
+                    game.board_cards[2] = 1;
+                    msg!("Game {} advanced to Flop", game.game_id);
+                }
+                GamePhase::Flop => {
+                    game.phase = GamePhase::Turn;
+                    game.current_turn = game.player1;
+                    game.board_cards[3] = 1; // Reveal turn card
+                    msg!("Game {} advanced to Turn", game.game_id);
+                }
+                GamePhase::Turn => {
+                    game.phase = GamePhase::River;
+                    game.current_turn = game.player1;
+                    game.board_cards[4] = 1; // Reveal river card
+                    msg!("Game {} advanced to River", game.game_id);
+                }
+                GamePhase::River => {
+                    game.phase = GamePhase::Showdown;
+                    game.current_turn = None;
+                    msg!("Game {} advanced to Showdown", game.game_id);
+                }
+                _ => {
+                    // Don't advance if already in Showdown or Finished
+                }
+            }
+        } else {
+            // Switch turn to next player (if player 1 acted, switch to player 2)
+            game.current_turn = if was_player2_turn {
+                game.player1
+            } else {
+                game.player2
+            };
+        }
 
         Ok(())
     }

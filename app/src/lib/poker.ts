@@ -245,6 +245,36 @@ export class PokerClient {
     player1Hand: number[],
     player2Hand: number[]
   ): Promise<string> {
+    // Validate inputs
+    if (player1Hand.length !== 2 || player2Hand.length !== 2) {
+      throw new Error("Each player must have exactly 2 cards");
+    }
+    
+    // Validate all cards are unique
+    const allCards = [...player1Hand, ...player2Hand];
+    const uniqueCards = new Set(allCards);
+    if (uniqueCards.size !== allCards.length) {
+      const duplicates = allCards.filter((card, index) => allCards.indexOf(card) !== index);
+      throw new Error(`Duplicate cards detected: ${duplicates.join(", ")}`);
+    }
+    
+    // Validate card values are in valid range
+    for (const card of allCards) {
+      if (!Number.isInteger(card) || card < 0 || card > 51) {
+        throw new Error(`Invalid card value: ${card}. Must be integer between 0 and 51.`);
+      }
+    }
+    
+    // Convert to u8 arrays (ensure they're bytes)
+    const player1HandBytes = player1Hand.map(c => c & 0xff);
+    const player2HandBytes = player2Hand.map(c => c & 0xff);
+    
+    console.log("Dealing cards to program:", {
+      player1Hand: player1HandBytes,
+      player2Hand: player2HandBytes,
+      allUnique: uniqueCards.size === allCards.length
+    });
+    
     const [gamePda] = PublicKey.findProgramAddressSync(
       [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
@@ -274,7 +304,7 @@ export class PokerClient {
     );
 
     const tx = await this.program.methods
-      .dealCards(new BN(gameId), player1Hand, player2Hand)
+      .dealCards(new BN(gameId), player1HandBytes, player2HandBytes)
       .accounts({
         game: gamePda,
         player1State: player1StatePda,
