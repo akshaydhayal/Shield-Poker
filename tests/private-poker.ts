@@ -9,21 +9,35 @@ describe("private-poker", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.PrivatePoker as Program<PrivatePoker>;
+  const program = anchor.workspace.privatePoker as Program<PrivatePoker>;
   const player1 = Keypair.generate();
   const player2 = Keypair.generate();
   const gameId = new anchor.BN(Date.now());
 
   before(async () => {
-    // Airdrop SOL to test accounts
-    await provider.connection.requestAirdrop(
-      player1.publicKey,
-      2 * LAMPORTS_PER_SOL
-    );
-    await provider.connection.requestAirdrop(
-      player2.publicKey,
-      2 * LAMPORTS_PER_SOL
-    );
+    // Airdrop SOL to test accounts (with retry logic)
+    const airdrop = async (pubkey: PublicKey, amount: number) => {
+      let retries = 3;
+      while (retries > 0) {
+        try {
+          const signature = await provider.connection.requestAirdrop(pubkey, amount);
+          await provider.connection.confirmTransaction(signature, "confirmed");
+          return;
+        } catch (err: any) {
+          if (err.message?.includes("429") || err.message?.includes("Too Many Requests")) {
+            retries--;
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw new Error("Airdrop failed after retries");
+    };
+
+    await airdrop(player1.publicKey, 2 * LAMPORTS_PER_SOL);
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limit protection
+    await airdrop(player2.publicKey, 2 * LAMPORTS_PER_SOL);
   });
 
   it("Initializes a game", async () => {
