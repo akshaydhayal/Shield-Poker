@@ -1,0 +1,28 @@
+# OSX
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+
+# Anchor
+.anchor/
+target/
+test-ledger/
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Build
+dist/
+build/
