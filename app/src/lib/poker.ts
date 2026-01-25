@@ -115,8 +115,9 @@ export class PokerClient {
     );
 
     // Fetch current game state to verify it exists and is in Waiting phase
+    let currentGame: any;
     try {
-      const currentGame = await (this.program.account as any).game.fetch(gamePda);
+      currentGame = await (this.program.account as any).game.fetch(gamePda);
       console.log("Current game state before join:", {
         phase: currentGame.phase,
         player1: currentGame.player1?.toString(),
@@ -143,7 +144,22 @@ export class PokerClient {
       throw new Error("Game not found. Make sure the game is initialized first.");
     }
 
-    const [playerStatePda] = PublicKey.findProgramAddressSync(
+    // Get player1 from game state to derive player1_state
+    const player1Pubkey = currentGame.player1;
+    if (!player1Pubkey) {
+      throw new Error("Game does not have a player1");
+    }
+
+    const [player1StatePda] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("player_state"),
+        this.numberToLeBytes(gameId),
+        player1Pubkey.toBuffer(),
+      ],
+      this.program.programId
+    );
+
+    const [player2StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
         this.numberToLeBytes(gameId),
@@ -159,7 +175,8 @@ export class PokerClient {
 
     console.log("Join game accounts:", {
       game: gamePda.toString(),
-      player2State: playerStatePda.toString(),
+      player1State: player1StatePda.toString(),
+      player2State: player2StatePda.toString(),
       gameVault: vaultPda.toString(),
       player2: this.wallet.publicKey.toString(),
     });
@@ -169,7 +186,8 @@ export class PokerClient {
         .joinGame(new BN(gameId))
         .accounts({
           game: gamePda,
-          player2State: playerStatePda,
+          player1State: player1StatePda,
+          player2State: player2StatePda,
           gameVault: vaultPda,
           player2: this.wallet.publicKey,
           systemProgram: SystemProgram.programId,

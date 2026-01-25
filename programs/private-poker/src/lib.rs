@@ -53,10 +53,11 @@ pub mod private_poker {
         anchor_lang::system_program::transfer(cpi_context, buy_in)?;
 
         // Initialize player1 state
+        // chips_committed starts at 0, will be set to small_blind when player2 joins
         let player_state = &mut ctx.accounts.player1_state;
         player_state.game_id = game_id;
         player_state.player = player1;
-        player_state.chips_committed = buy_in;
+        player_state.chips_committed = 0;
         player_state.has_folded = false;
         player_state.hand = [0u8; 2];
 
@@ -69,16 +70,43 @@ pub mod private_poker {
     pub fn join_game(ctx: Context<JoinGame>, game_id: u64) -> Result<()> {
         let game = &mut ctx.accounts.game;
         let player2 = ctx.accounts.player2.key();
+        let player1 = game.player1.ok_or(PokerError::MissingOpponent)?;
 
+        // Verify player1_state is the correct PDA for game.player1
+        let (expected_player1_state, _) = Pubkey::find_program_address(
+            &[
+                PLAYER_STATE_SEED,
+                &game_id.to_le_bytes(),
+                player1.as_ref(),
+            ],
+            ctx.program_id,
+        );
+        require!(
+            ctx.accounts.player1_state.key() == expected_player1_state,
+            PokerError::InvalidAction
+        );
+        
+        // Verify player1_state belongs to this game and player
+        require!(
+            ctx.accounts.player1_state.game_id == game_id,
+            PokerError::InvalidAction
+        );
+        require!(
+            ctx.accounts.player1_state.player == player1,
+            PokerError::InvalidAction
+        );
+
+        // Validation checks
         require!(game.player1 != Some(player2), PokerError::CannotJoinOwnGame);
         require!(game.player2.is_none(), PokerError::GameFull);
         require!(game.phase == GamePhase::Waiting, PokerError::InvalidGamePhase);
 
+        // Update game state
         game.player2 = Some(player2);
         game.phase = GamePhase::PreFlop;
         game.current_turn = game.player1; // Small blind acts first
 
-        // Transfer buy-in to vault
+        // Transfer buy-in from player2 to vault
         let cpi_context = CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
             anchor_lang::system_program::Transfer {
@@ -88,15 +116,19 @@ pub mod private_poker {
         );
         anchor_lang::system_program::transfer(cpi_context, game.buy_in)?;
 
-        // Initialize player2 state
-        let player_state = &mut ctx.accounts.player2_state;
-        player_state.game_id = game_id;
-        player_state.player = player2;
-        player_state.chips_committed = game.buy_in;
-        player_state.has_folded = false;
-        player_state.hand = [0u8; 2];
+        // Update player1_state to post small blind
+        let player1_state = &mut ctx.accounts.player1_state;
+        player1_state.chips_committed = game.small_blind;
 
-        // Post blinds
+        // Initialize player2_state with big blind
+        let player2_state = &mut ctx.accounts.player2_state;
+        player2_state.game_id = game_id;
+        player2_state.player = player2;
+        player2_state.chips_committed = game.big_blind;
+        player2_state.has_folded = false;
+        player2_state.hand = [0u8; 2];
+
+        // Set pot to blinds (small blind + big blind)
         game.pot_amount = game.small_blind + game.big_blind;
 
         msg!("Player {} joined game {}", player2, game_id);
@@ -220,38 +252,30 @@ pub mod private_poker {
             PlayerActionType::Call => {
                 let call_amount = other_chips.saturating_sub(player_state.chips_committed);
                 require!(call_amount > 0, PokerError::InvalidAction);
-                player_state.chips_committed += call_amount;
+                
+                // Validate that new chips_committed doesn't exceed buy_in
+                let new_chips_committed = player_state.chips_committed + call_amount;
+                require!(new_chips_committed <= game.buy_in, PokerError::InvalidAction);
+                
+                player_state.chips_committed = new_chips_committed;
                 game.pot_amount += call_amount;
 
-                // Transfer SOL to vault
-                let cpi_context = CpiContext::new(
-                    ctx.accounts.system_program.to_account_info(),
-                    anchor_lang::system_program::Transfer {
-                        from: ctx.accounts.player.to_account_info(),
-                        to: ctx.accounts.game_vault.to_account_info(),
-                    },
-                );
-                anchor_lang::system_program::transfer(cpi_context, call_amount)?;
-
-                msg!("Player {} called {}", player, call_amount);
+                // No wallet transfer - money is already in vault from buy-in
+                msg!("Player {} called {} (from buy-in)", player, call_amount);
             }
             PlayerActionType::Bet => {
                 let bet_amount = amount.ok_or(PokerError::InvalidAction)?;
                 require!(bet_amount >= game.big_blind, PokerError::BetTooSmall);
-                player_state.chips_committed += bet_amount;
+                
+                // Validate that new chips_committed doesn't exceed buy_in
+                let new_chips_committed = player_state.chips_committed + bet_amount;
+                require!(new_chips_committed <= game.buy_in, PokerError::InvalidAction);
+                
+                player_state.chips_committed = new_chips_committed;
                 game.pot_amount += bet_amount;
 
-                // Transfer SOL to vault
-                let cpi_context = CpiContext::new(
-                    ctx.accounts.system_program.to_account_info(),
-                    anchor_lang::system_program::Transfer {
-                        from: ctx.accounts.player.to_account_info(),
-                        to: ctx.accounts.game_vault.to_account_info(),
-                    },
-                );
-                anchor_lang::system_program::transfer(cpi_context, bet_amount)?;
-
-                msg!("Player {} bet {}", player, bet_amount);
+                // No wallet transfer - money is already in vault from buy-in
+                msg!("Player {} bet {} (from buy-in)", player, bet_amount);
             }
         }
 
@@ -623,7 +647,7 @@ pub struct InitializeGame<'info> {
         seeds = [GAME_VAULT_SEED, &game_id.to_le_bytes()],
         bump
     )]
-    pub game_vault: SystemAccount<'info>,
+    pub game_vault: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub player1: Signer<'info>,
@@ -641,22 +665,31 @@ pub struct JoinGame<'info> {
     )]
     pub game: Account<'info, Game>,
 
+    /// Player1's state - we verify the PDA manually in the function
+    /// because Anchor can't resolve seeds that depend on game.player1
+    #[account(mut)]
+    pub player1_state: Account<'info, PlayerState>,
+
     #[account(
         init,
         payer = player2,
         space = 8 + PlayerState::LEN,
-        seeds = [PLAYER_STATE_SEED, &game_id.to_le_bytes(), player2.key().as_ref()],
+        seeds = [
+            PLAYER_STATE_SEED,
+            &game_id.to_le_bytes(),
+            player2.key().as_ref()
+        ],
         bump
     )]
     pub player2_state: Account<'info, PlayerState>,
 
-    /// CHECK: Vault PDA
+    /// CHECK: Vault PDA for holding game funds
     #[account(
         mut,
         seeds = [GAME_VAULT_SEED, &game_id.to_le_bytes()],
         bump
     )]
-    pub game_vault: SystemAccount<'info>,
+    pub game_vault: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub player2: Signer<'info>,
@@ -734,7 +767,7 @@ pub struct PlayerAction<'info> {
         seeds = [GAME_VAULT_SEED, &game_id.to_le_bytes()],
         bump
     )]
-    pub game_vault: SystemAccount<'info>,
+    pub game_vault: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub player: Signer<'info>,
@@ -799,7 +832,7 @@ pub struct ResolveGame<'info> {
         seeds = [GAME_VAULT_SEED, &game.game_id.to_le_bytes()],
         bump
     )]
-    pub game_vault: SystemAccount<'info>,
+    pub game_vault: UncheckedAccount<'info>,
 
     /// CHECK: Winner account
     #[account(mut)]

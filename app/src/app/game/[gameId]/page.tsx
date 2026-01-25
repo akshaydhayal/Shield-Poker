@@ -489,12 +489,26 @@ export default function GamePage() {
                 <p className="text-3xl font-bold text-yellow-300">{gameState.phase}</p>
               </div>
 
-              {/* Pot Amount */}
-              <div className="text-center bg-yellow-500/20 rounded-lg p-4">
-                <p className="text-white/70 text-sm mb-1">Pot Amount</p>
-                <p className="text-4xl font-bold text-yellow-300">
-                  {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                </p>
+              {/* Game Pool Summary */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Pot Amount */}
+                <div className="text-center bg-yellow-500/20 rounded-lg p-4 border border-yellow-500/40">
+                  <p className="text-white/70 text-sm mb-1">💰 Current Pot</p>
+                  <p className="text-3xl font-bold text-yellow-300">
+                    {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                  </p>
+                </div>
+
+                {/* Total Pool (Vault) */}
+                <div className="text-center bg-green-500/20 rounded-lg p-4 border border-green-500/40">
+                  <p className="text-white/70 text-sm mb-1">🏦 Total Pool</p>
+                  <p className="text-3xl font-bold text-green-300">
+                    {((gameState.buyIn * 2) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                  </p>
+                  <p className="text-white/50 text-xs mt-1">
+                    (Buy-in: {(gameState.buyIn / LAMPORTS_PER_SOL).toFixed(4)} SOL × 2)
+                  </p>
+                </div>
               </div>
 
               {/* Turn Indicator */}
@@ -595,11 +609,39 @@ export default function GamePage() {
                         <span className="text-red-400 text-sm font-bold">FOLDED</span>
                       )}
                     </div>
-                    <div className="mb-3">
-                      <p className="text-white/70 text-sm mb-1">Chips Committed</p>
-                      <p className="text-xl font-bold text-yellow-300">
-                        {(player1State.chipsCommitted / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                      </p>
+                    <div className="mb-3 bg-black/20 rounded p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-white/70 text-sm">Buy-in</p>
+                        <p className="text-white font-semibold">
+                          {(gameState.buyIn / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-white/70 text-sm">Committed</p>
+                        <p className="text-yellow-300 font-bold">
+                          {(player1State.chipsCommitted / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <p className="text-white/70 text-sm">Remaining</p>
+                        <p className="text-green-400 font-bold">
+                          {((gameState.buyIn - player1State.chipsCommitted) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                        </p>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="mt-3">
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
+                            style={{ 
+                              width: `${(player1State.chipsCommitted / gameState.buyIn * 100).toFixed(1)}%` 
+                            }}
+                          />
+                        </div>
+                        <p className="text-white/50 text-xs mt-1 text-center">
+                          {(player1State.chipsCommitted / gameState.buyIn * 100).toFixed(1)}% used
+                        </p>
+                      </div>
                     </div>
                     {player1State.hand && 
                      player1State.hand.some(c => c > 0) && 
@@ -643,11 +685,39 @@ export default function GamePage() {
                         <span className="text-red-400 text-sm font-bold">FOLDED</span>
                       )}
                     </div>
-                    <div className="mb-3">
-                      <p className="text-white/70 text-sm mb-1">Chips Committed</p>
-                      <p className="text-xl font-bold text-yellow-300">
-                        {(player2State.chipsCommitted / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                      </p>
+                    <div className="mb-3 bg-black/20 rounded p-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-white/70 text-sm">Buy-in</p>
+                        <p className="text-white font-semibold">
+                          {(gameState.buyIn / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center mb-2">
+                        <p className="text-white/70 text-sm">Committed</p>
+                        <p className="text-yellow-300 font-bold">
+                          {(player2State.chipsCommitted / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                        </p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <p className="text-white/70 text-sm">Remaining</p>
+                        <p className="text-green-400 font-bold">
+                          {((gameState.buyIn - player2State.chipsCommitted) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                        </p>
+                      </div>
+                      {/* Progress Bar */}
+                      <div className="mt-3">
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div 
+                            className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
+                            style={{ 
+                              width: `${(player2State.chipsCommitted / gameState.buyIn * 100).toFixed(1)}%` 
+                            }}
+                          />
+                        </div>
+                        <p className="text-white/50 text-xs mt-1 text-center">
+                          {(player2State.chipsCommitted / gameState.buyIn * 100).toFixed(1)}% used
+                        </p>
+                      </div>
                     </div>
                     {player2State.hand && 
                      player2State.hand.some(c => c > 0) && 
