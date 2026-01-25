@@ -114,6 +114,35 @@ export class PokerClient {
       this.program.programId
     );
 
+    // Fetch current game state to verify it exists and is in Waiting phase
+    try {
+      const currentGame = await (this.program.account as any).game.fetch(gamePda);
+      console.log("Current game state before join:", {
+        phase: currentGame.phase,
+        player1: currentGame.player1?.toString(),
+        player2: currentGame.player2?.toString(),
+      });
+      
+      // Check phase - Anchor enums are objects, so we need to check the keys
+      const currentPhase = typeof currentGame.phase === 'object' 
+        ? Object.keys(currentGame.phase)[0]?.toLowerCase()
+        : String(currentGame.phase).toLowerCase();
+      
+      if (currentPhase !== "waiting") {
+        throw new Error(`Game is not in Waiting phase. Current phase: ${currentPhase}`);
+      }
+      
+      if (currentGame.player2 !== null) {
+        throw new Error("Game is already full");
+      }
+    } catch (err: any) {
+      if (err.message && (err.message.includes("not in Waiting") || err.message.includes("already full"))) {
+        throw err;
+      }
+      console.error("Error fetching game before join:", err);
+      throw new Error("Game not found. Make sure the game is initialized first.");
+    }
+
     const [playerStatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
@@ -128,18 +157,64 @@ export class PokerClient {
       this.program.programId
     );
 
-    const tx = await this.program.methods
-      .joinGame(new BN(gameId))
-      .accounts({
-        game: gamePda,
-        player2State: playerStatePda,
-        gameVault: vaultPda,
-        player2: this.wallet.publicKey,
-        systemProgram: SystemProgram.programId,
-      })
-      .rpc();
+    console.log("Join game accounts:", {
+      game: gamePda.toString(),
+      player2State: playerStatePda.toString(),
+      gameVault: vaultPda.toString(),
+      player2: this.wallet.publicKey.toString(),
+    });
 
-    return tx;
+    try {
+      const tx = await this.program.methods
+        .joinGame(new BN(gameId))
+        .accounts({
+          game: gamePda,
+          player2State: playerStatePda,
+          gameVault: vaultPda,
+          player2: this.wallet.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .rpc();
+
+      console.log("Join game transaction successful:", tx);
+      
+      // Wait a bit for the transaction to be confirmed
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Verify the game state was updated
+      try {
+        const updatedGame = await (this.program.account as any).game.fetch(gamePda);
+        console.log("Game state after join:", {
+          phase: updatedGame.phase,
+          player2: updatedGame.player2?.toString(),
+          currentTurn: updatedGame.currentTurn?.toString(),
+        });
+        
+        // Check phase - Anchor enums are objects
+        const updatedPhase = typeof updatedGame.phase === 'object'
+          ? Object.keys(updatedGame.phase)[0]?.toLowerCase()
+          : String(updatedGame.phase).toLowerCase();
+        
+        if (updatedPhase === "waiting") {
+          console.warn("Warning: Game phase is still Waiting after join transaction");
+        } else {
+          console.log("Game phase successfully updated to:", updatedPhase);
+        }
+      } catch (fetchErr) {
+        console.error("Error fetching game after join:", fetchErr);
+      }
+
+      return tx;
+    } catch (err: any) {
+      console.error("Join game transaction failed:", err);
+      if (err.logs) {
+        console.error("Transaction logs:", err.logs);
+      }
+      if (err.error) {
+        console.error("Transaction error:", err.error);
+      }
+      throw err;
+    }
   }
 
   /**
@@ -176,7 +251,7 @@ export class PokerClient {
     );
 
     // Get player PDAs
-    const game = await this.program.account.game.fetch(gamePda);
+    const game = await (this.program.account as any).game.fetch(gamePda);
     const player1 = game.player1!;
     const player2 = game.player2!;
 
@@ -224,7 +299,7 @@ export class PokerClient {
       this.program.programId
     );
 
-    const game = await this.program.account.game.fetch(gamePda);
+    const game = await (this.program.account as any).game.fetch(gamePda);
     const player1 = game.player1!;
     const player2 = game.player2!;
 
@@ -275,7 +350,7 @@ export class PokerClient {
       this.program.programId
     );
 
-    const game = await this.program.account.game.fetch(gamePda);
+    const game = await (this.program.account as any).game.fetch(gamePda);
     const player1 = game.player1!;
     const player2 = game.player2!;
 
@@ -319,7 +394,7 @@ export class PokerClient {
       this.program.programId
     );
 
-    const game = await this.program.account.game.fetch(gamePda);
+    const game = await (this.program.account as any).game.fetch(gamePda);
     const player1 = game.player1!;
     const player2 = game.player2!;
 
@@ -382,7 +457,7 @@ export class PokerClient {
         this.program.programId
       );
 
-      const game = await this.program.account.game.fetch(gamePda);
+      const game = await (this.program.account as any).game.fetch(gamePda);
       return {
         gameId: game.gameId.toNumber(),
         player1: game.player1,
@@ -425,7 +500,7 @@ export class PokerClient {
         this.program.programId
       );
 
-      const state = await this.program.account.playerState.fetch(
+      const state = await (this.program.account as any).playerState.fetch(
         playerStatePda
       );
       return {
@@ -442,15 +517,35 @@ export class PokerClient {
   }
 
   private mapPhase(phase: any): GamePhase {
+    // Anchor enums are returned as objects like { waiting: {} } or { preFlop: {} }
+    let phaseStr: string;
+    
+    if (typeof phase === 'string') {
+      phaseStr = phase.toLowerCase();
+    } else if (typeof phase === 'object' && phase !== null) {
+      // Get the first key from the enum object
+      phaseStr = Object.keys(phase)[0]?.toLowerCase() || 'waiting';
+    } else {
+      console.warn("Unknown phase format:", phase);
+      return GamePhase.Waiting;
+    }
+    
     const phaseMap: Record<string, GamePhase> = {
       waiting: GamePhase.Waiting,
-      preFlop: GamePhase.PreFlop,
+      preflop: GamePhase.PreFlop,
       flop: GamePhase.Flop,
       turn: GamePhase.Turn,
       river: GamePhase.River,
       showdown: GamePhase.Showdown,
       finished: GamePhase.Finished,
     };
-    return phaseMap[phase] || GamePhase.Waiting;
+    
+    const mapped = phaseMap[phaseStr];
+    if (!mapped) {
+      console.warn("Unknown phase value:", phaseStr, "raw phase:", phase);
+      return GamePhase.Waiting;
+    }
+    
+    return mapped;
   }
 }

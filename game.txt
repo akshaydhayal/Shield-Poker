@@ -1,0 +1,101 @@
+i see these things are missing in UI:
+Set deck seed button/functionality
+Deal cards button/functionality
+Turn indicator: show whose turn it is
+Action validation: disable actions when it’s not your turn
+Bet amount input: allow custom bet amounts
+Board cards display: show revealed board cards
+Player hand display: show your cards (decrypted from PER)
+Chips committed display: show each player’s committed amount
+
+implement them nicely in Ui. such that fucntionalty is fine and it slooks good also.
+
+
+
+
+Complete Game Flow After Both Players Join
+Current state (after join)
+Phase: PreFlop
+
+Both players have paid buy-in
+Blinds are posted (small blind + big blind)
+current_turn is set to Player 1 (small blind acts first) 
+Next steps
+Step 1: Set deck seed (optional, for randomness)
+Purpose: Set a seed for card shuffling (ideally from MagicBlock VRF)
+Who: Either player
+Function: setDeckSeed(gameId, seed)
+UI: Not shown; add a button or do it automatically
+Step 2: Deal cards
+Purpose: Deal 2 cards to each player (encrypted via PER)
+Who: Either player
+Function: dealCards(gameId, player1Hand, player2Hand)
+Note: Cards are private (encrypted in PER)
+UI: Not shown; add a button or handle automatically
+Step 3: PreFlop betting round
+Player 1 (small blind) acts first
+Actions:
+Fold: Exit the hand
+Check: Pass (only if no bet)
+Call: Match the big blind
+Bet: Raise (minimum = big blind)
+After Player 1 acts, Player 2 (big blind) acts
+Continue until both players have equal chips committed or one folds
+Step 4: Advance to Flop
+When: Both players have equal chips committed
+Who: Either player can call advancePhase()
+Result:
+Phase changes to Flop
+3 board cards are revealed (currently placeholder)
+current_turn resets to Player 1
+Step 5: Flop betting round
+Same actions as PreFlop
+Continue until chips are equal or someone folds
+Step 6: Advance to Turn
+When: Chips are equal after Flop
+Result:
+Phase changes to Turn
+4th board card revealed
+current_turn resets to Player 1
+Step 7: Turn betting round
+Same actions as before
+Step 8: Advance to River
+When: Chips are equal after Turn
+Result:
+Phase changes to River
+5th board card revealed
+current_turn resets to Player 1
+Step 9: River betting round
+Final betting round
+Step 10: Advance to Showdown
+When: Chips are equal after River
+Result:
+Phase changes to Showdown
+current_turn set to None
+Step 11: Resolve game
+Purpose: Determine winner and distribute pot
+Who: Either player
+Function: resolveGame(gameId, winner)
+Result:
+Phase changes to Finished
+Winner receives the pot
+Game ends
+What’s missing in the UI
+Set deck seed button/functionality
+Deal cards button/functionality
+Turn indicator: show whose turn it is
+Action validation: disable actions when it’s not your turn
+Bet amount input: allow custom bet amounts
+Board cards display: show revealed board cards
+Player hand display: show your cards (decrypted from PER)
+Chips committed display: show each player’s committed amount
+Recommended UI improvements
+Show current turn: highlight the active player
+Disable actions when it’s not your turn
+Add “Set Deck Seed” and “Deal Cards” buttons after join
+Show board cards for Flop/Turn/River
+Show your hand (decrypted)
+Show chips committed per player
+Add bet amount input field
+Auto-advance phase when conditions are met (optional)
+Should I implement these UI improvements? I can add the missing buttons, turn indicators, and game state displays to make the flow clear.

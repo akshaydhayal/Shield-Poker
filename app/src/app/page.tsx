@@ -102,12 +102,53 @@ export default function Home() {
 
     try {
       setLoading(true);
+      setError(null);
+      
       const tx = await pokerClient.joinGame(gameId);
-      console.log("Joined game:", tx);
-      await fetchGameState();
+      console.log("Joined game transaction:", tx);
+      
+      // Wait for transaction confirmation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Fetch game state multiple times to ensure we get the updated state
+      let attempts = 0;
+      const maxAttempts = 5;
+      let stateUpdated = false;
+      
+      while (attempts < maxAttempts && !stateUpdated) {
+        await fetchGameState();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
+        
+        // Check if phase has changed
+        try {
+          const state = await pokerClient.getGame(gameId);
+          if (state && state.phase !== GamePhase.Waiting) {
+            console.log("Game phase updated to:", state.phase);
+            stateUpdated = true;
+            setGameState(state);
+          } else if (state && state.phase === GamePhase.Waiting) {
+            console.log(`Attempt ${attempts}: Game still in Waiting phase`);
+          }
+        } catch (fetchErr) {
+          console.error("Error fetching game state:", fetchErr);
+        }
+      }
+      
+      if (!stateUpdated) {
+        console.warn("Game state may not have updated. Please refresh manually.");
+        // Still fetch one more time to show current state
+        await fetchGameState();
+      }
+      
       setError(null);
     } catch (err: any) {
+      console.error("Join game error:", err);
       setError(err.message || "Failed to join game");
+      // Log full error for debugging
+      if (err.logs) {
+        console.error("Transaction logs:", err.logs);
+      }
     } finally {
       setLoading(false);
     }
@@ -224,120 +265,137 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Game Setup */}
-              <div className="bg-white/5 rounded-lg p-6">
-                <h2 className="text-2xl font-semibold text-white mb-4">
-                  Game Setup
-                </h2>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-white mb-2">Game ID</label>
-                    <input
-                      type="number"
-                      value={gameId}
-                      onChange={(e) => setGameId(Number(e.target.value))}
-                      className="w-full bg-white/10 border border-white/20 rounded px-4 py-2 text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-white mb-2">
-                      Buy-in (SOL)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0.1"
-                      value={buyInSol}
-                      onChange={(e) => setBuyInSol(Number(e.target.value))}
-                      className="w-full bg-white/10 border border-white/20 rounded px-4 py-2 text-white"
-                      placeholder="1.0"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <button
-                    onClick={handleInitializeGame}
-                    disabled={loading}
-                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-                  >
-                    Initialize Game
-                  </button>
-                  <button
-                    onClick={handleJoinGame}
-                    disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-                  >
-                    Join Game
-                  </button>
-                </div>
-              </div>
-
-              {/* Game State */}
-              {gameState && (
+              {/* Game Setup - Only show if no game or game is waiting */}
+              {(!gameState || gameState.phase === GamePhase.Waiting) && (
                 <div className="bg-white/5 rounded-lg p-6">
                   <h2 className="text-2xl font-semibold text-white mb-4">
-                    Game State
+                    {!gameState ? "Create or Join Game" : "Waiting for Player 2"}
                   </h2>
-                  <div className="grid grid-cols-2 gap-4 text-white">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <p className="text-white/70">Phase:</p>
-                      <p className="text-xl font-bold">{gameState.phase}</p>
+                      <label className="block text-white mb-2">Game ID</label>
+                      <input
+                        type="number"
+                        value={gameId}
+                        onChange={(e) => setGameId(Number(e.target.value))}
+                        className="w-full bg-white/10 border border-white/20 rounded px-4 py-2 text-white"
+                      />
                     </div>
                     <div>
-                      <p className="text-white/70">Pot:</p>
-                      <p className="text-xl font-bold">
-                        {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-white/70">Player 1:</p>
-                      <p className="text-sm font-mono">
-                        {gameState.player1?.toString().slice(0, 8)}...
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-white/70">Player 2:</p>
-                      <p className="text-sm font-mono">
-                        {gameState.player2?.toString().slice(0, 8)}...
-                      </p>
+                      <label className="block text-white mb-2">
+                        Buy-in (SOL)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        value={buyInSol}
+                        onChange={(e) => setBuyInSol(Number(e.target.value))}
+                        className="w-full bg-white/10 border border-white/20 rounded px-4 py-2 text-white"
+                        placeholder="1.0"
+                      />
                     </div>
                   </div>
+                  <div className="flex gap-4">
+                    <button
+                      onClick={handleInitializeGame}
+                      disabled={loading || (gameState && publicKey && gameState.player1?.equals(publicKey))}
+                      className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50"
+                    >
+                      {gameState && publicKey && gameState.player1?.equals(publicKey) 
+                        ? "✓ Game Created" 
+                        : "Create Game"}
+                    </button>
+                    <button
+                      onClick={handleJoinGame}
+                      disabled={loading || !gameState || gameState.player2 !== null}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50"
+                    >
+                      {gameState && gameState.player2 !== null
+                        ? "✓ Game Full"
+                        : "Join Game"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                  {/* Player Actions */}
+              {/* Game Status - Simple and Clear */}
+              {gameState && (
+                <div className="bg-white/5 rounded-lg p-6 space-y-6">
+                  {/* Current Phase */}
+                  <div className="text-center">
+                    <p className="text-white/70 text-sm mb-2">Current Phase</p>
+                    <p className="text-3xl font-bold text-yellow-300">{gameState.phase}</p>
+                  </div>
+
+                  {/* Pot Amount */}
+                  <div className="text-center bg-yellow-500/20 rounded-lg p-4">
+                    <p className="text-white/70 text-sm mb-1">Pot Amount</p>
+                    <p className="text-4xl font-bold text-yellow-300">
+                      {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                    </p>
+                  </div>
+
+                  {/* Turn Indicator */}
+                  {gameState.phase !== GamePhase.Waiting && 
+                   gameState.phase !== GamePhase.Finished && 
+                   gameState.currentTurn && 
+                   publicKey && (
+                    <div className={`text-center p-4 rounded-lg ${
+                      gameState.currentTurn.equals(publicKey)
+                        ? "bg-green-500/30 border-2 border-green-400"
+                        : "bg-gray-500/20 border-2 border-gray-400"
+                    }`}>
+                      {gameState.currentTurn.equals(publicKey) ? (
+                        <div>
+                          <p className="text-2xl font-bold text-green-300 mb-2">🎯 YOUR TURN</p>
+                          <p className="text-white/80">It's your turn to act!</p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="text-2xl font-bold text-gray-300 mb-2">⏳ Waiting...</p>
+                          <p className="text-white/80">Waiting for opponent to act</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Player Actions - Only show when it's your turn */}
                   {gameState.phase !== GamePhase.Waiting &&
-                    gameState.phase !== GamePhase.Finished && (
-                      <div className="mt-6 space-y-4">
-                        <h3 className="text-xl font-semibold text-white mb-4">
-                          Actions
+                    gameState.phase !== GamePhase.Finished &&
+                    gameState.currentTurn &&
+                    publicKey &&
+                    gameState.currentTurn.equals(publicKey) && (
+                      <div className="space-y-4">
+                        <h3 className="text-xl font-semibold text-white text-center mb-4">
+                          What do you want to do?
                         </h3>
-                        <div className="flex flex-wrap gap-4">
+                        
+                        <div className="grid grid-cols-2 gap-3">
                           <button
-                            onClick={() =>
-                              handlePlayerAction(PlayerActionType.Fold)
-                            }
+                            onClick={() => handlePlayerAction(PlayerActionType.Fold)}
                             disabled={loading}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg disabled:opacity-50 text-lg"
                           >
-                            Fold
+                            ❌ Fold
                           </button>
+                          
                           <button
-                            onClick={() =>
-                              handlePlayerAction(PlayerActionType.Check)
-                            }
+                            onClick={() => handlePlayerAction(PlayerActionType.Check)}
                             disabled={loading}
-                            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-4 px-6 rounded-lg disabled:opacity-50 text-lg"
                           >
-                            Check
+                            ✓ Check
                           </button>
+                          
                           <button
-                            onClick={() =>
-                              handlePlayerAction(PlayerActionType.Call)
-                            }
+                            onClick={() => handlePlayerAction(PlayerActionType.Call)}
                             disabled={loading}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg disabled:opacity-50 text-lg"
                           >
-                            Call
+                            📞 Call
                           </button>
+                          
                           <button
                             onClick={() =>
                               handlePlayerAction(
@@ -346,20 +404,60 @@ export default function Home() {
                               )
                             }
                             disabled={loading}
-                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg disabled:opacity-50 text-lg"
                           >
-                            Bet {(gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                          </button>
-                          <button
-                            onClick={handleAdvancePhase}
-                            disabled={loading}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-                          >
-                            Advance Phase
+                            💰 Bet {(gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)} SOL
                           </button>
                         </div>
                       </div>
                     )}
+
+                  {/* Advance Phase Button - Show when both players have acted */}
+                  {gameState.phase !== GamePhase.Waiting &&
+                    gameState.phase !== GamePhase.Finished &&
+                    gameState.phase !== GamePhase.Showdown && (
+                      <div className="text-center">
+                        <button
+                          onClick={handleAdvancePhase}
+                          disabled={loading}
+                          className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50"
+                        >
+                          ⏭️ Advance to Next Phase
+                        </button>
+                        <p className="text-white/60 text-sm mt-2">
+                          (Click when both players have acted)
+                        </p>
+                      </div>
+                    )}
+
+                  {/* Game Finished */}
+                  {gameState.phase === GamePhase.Finished && gameState.winner && (
+                    <div className="text-center bg-yellow-500/30 rounded-lg p-6 border-2 border-yellow-400">
+                      <p className="text-3xl font-bold text-yellow-300 mb-2">🏆 Game Finished!</p>
+                      <p className="text-xl text-white">
+                        Winner: {gameState.winner.toString().slice(0, 8)}...
+                        {publicKey && gameState.winner.equals(publicKey) && " (You won!)"}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Game Info */}
+                  <div className="grid grid-cols-2 gap-4 text-sm text-white/70">
+                    <div>
+                      <p>Player 1:</p>
+                      <p className="font-mono text-xs">
+                        {gameState.player1?.toString().slice(0, 8)}...
+                        {publicKey && gameState.player1?.equals(publicKey) && " (You)"}
+                      </p>
+                    </div>
+                    <div>
+                      <p>Player 2:</p>
+                      <p className="font-mono text-xs">
+                        {gameState.player2?.toString().slice(0, 8)}...
+                        {publicKey && gameState.player2?.equals(publicKey) && " (You)"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
