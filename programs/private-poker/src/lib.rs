@@ -105,7 +105,7 @@ pub mod private_poker {
     }
 
     /// Set deck seed (from VRF or commit-reveal)
-    pub fn set_deck_seed(ctx: Context<SetDeckSeed>, seed: [u8; 32]) -> Result<()> {
+    pub fn set_deck_seed(ctx: Context<SetDeckSeed>, _game_id: u64, seed: [u8; 32]) -> Result<()> {
         let game = &mut ctx.accounts.game;
         require!(
             game.phase == GamePhase::PreFlop,
@@ -119,6 +119,7 @@ pub mod private_poker {
     /// Deal cards to players (cards are encrypted via PER)
     pub fn deal_cards(
         ctx: Context<DealCards>,
+        _game_id: u64,
         player1_hand: [u8; 2],
         player2_hand: [u8; 2],
     ) -> Result<()> {
@@ -142,6 +143,7 @@ pub mod private_poker {
     /// Player action: Bet, Call, Fold, or Check
     pub fn player_action(
         ctx: Context<PlayerAction>,
+        _game_id: u64,
         action: PlayerActionType,
         amount: Option<u64>,
     ) -> Result<()> {
@@ -228,7 +230,7 @@ pub mod private_poker {
     }
 
     /// Advance game phase (PreFlop -> Flop -> Turn -> River -> Showdown)
-    pub fn advance_phase(ctx: Context<AdvancePhase>) -> Result<()> {
+    pub fn advance_phase(ctx: Context<AdvancePhase>, _game_id: u64) -> Result<()> {
         let game = &mut ctx.accounts.game;
 
         match game.phase {
