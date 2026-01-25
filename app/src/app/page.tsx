@@ -3,19 +3,19 @@
 import { useState, useEffect } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { PokerClient, GamePhase, PlayerActionType } from "@/lib/poker";
 import { authorizeTee, createTeeConnection, signMessageWithWallet } from "@/lib/magicblock";
 import { PROGRAM_ID, RPC_URL } from "@/config";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export default function Home() {
-  const { publicKey, signMessage, connected } = useWallet();
+  const { publicKey, signMessage, signTransaction, signAllTransactions, connected } = useWallet();
   const [connection, setConnection] = useState<Connection | null>(null);
   const [teeConnection, setTeeConnection] = useState<Connection | null>(null);
   const [pokerClient, setPokerClient] = useState<PokerClient | null>(null);
   const [gameId, setGameId] = useState<number>(1);
-  const [buyIn, setBuyIn] = useState<number>(1000000000); // 1 SOL in lamports
+  const [buyInSol, setBuyInSol] = useState<number>(1); // Buy-in in SOL
   const [gameState, setGameState] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,10 +29,15 @@ export default function Home() {
   }, [connected, publicKey]);
 
   useEffect(() => {
-    if (connection && publicKey && signMessage) {
+    if (connection && publicKey && signTransaction && signAllTransactions) {
       const wallet = {
         publicKey,
+        signTransaction: signTransaction,
+        signAllTransactions: signAllTransactions,
         signMessage: async (message: Uint8Array) => {
+          if (!signMessage) {
+            throw new Error("signMessage not available");
+          }
           const signed = await signMessage(message);
           return signed;
         },
@@ -40,7 +45,7 @@ export default function Home() {
       const client = new PokerClient(connection, wallet as any);
       setPokerClient(client);
     }
-  }, [connection, publicKey, signMessage]);
+  }, [connection, publicKey, signMessage, signTransaction, signAllTransactions]);
 
   const handleAuthorize = async () => {
     if (!publicKey || !signMessage) {
@@ -76,7 +81,9 @@ export default function Home() {
 
     try {
       setLoading(true);
-      const tx = await pokerClient.initializeGame(gameId, buyIn);
+      // Convert SOL to lamports
+      const buyInLamports = buyInSol * LAMPORTS_PER_SOL;
+      const tx = await pokerClient.initializeGame(gameId, buyInLamports);
       console.log("Game initialized:", tx);
       await fetchGameState();
       setError(null);
@@ -106,7 +113,7 @@ export default function Home() {
     }
   };
 
-  const handlePlayerAction = async (action: PlayerActionType, amount?: number) => {
+  const handlePlayerAction = async (action: PlayerActionType, amountSol?: number) => {
     if (!pokerClient) {
       setError("Poker client not initialized");
       return;
@@ -114,7 +121,9 @@ export default function Home() {
 
     try {
       setLoading(true);
-      const tx = await pokerClient.playerAction(gameId, action, amount);
+      // Convert SOL to lamports if amount is provided
+      const amountLamports = amountSol ? amountSol * LAMPORTS_PER_SOL : undefined;
+      const tx = await pokerClient.playerAction(gameId, action, amountLamports);
       console.log("Action executed:", tx);
       await fetchGameState();
       setError(null);
@@ -150,8 +159,15 @@ export default function Home() {
     try {
       const state = await pokerClient.getGame(gameId);
       setGameState(state);
+      // Clear error if game doesn't exist (it's normal)
+      if (state === null) {
+        setError(null);
+      }
     } catch (err) {
-      console.error("Error fetching game state:", err);
+      // Only log unexpected errors, not "account doesn't exist" errors
+      if (err instanceof Error && !err.message.includes("Account does not exist")) {
+        console.error("Error fetching game state:", err);
+      }
     }
   };
 
@@ -225,13 +241,16 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="block text-white mb-2">
-                      Buy-in (lamports)
+                      Buy-in (SOL)
                     </label>
                     <input
                       type="number"
-                      value={buyIn}
-                      onChange={(e) => setBuyIn(Number(e.target.value))}
+                      step="0.1"
+                      min="0.1"
+                      value={buyInSol}
+                      onChange={(e) => setBuyInSol(Number(e.target.value))}
                       className="w-full bg-white/10 border border-white/20 rounded px-4 py-2 text-white"
+                      placeholder="1.0"
                     />
                   </div>
                 </div>
@@ -267,7 +286,7 @@ export default function Home() {
                     <div>
                       <p className="text-white/70">Pot:</p>
                       <p className="text-xl font-bold">
-                        {gameState.potAmount / 1e9} SOL
+                        {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
                       </p>
                     </div>
                     <div>
@@ -323,13 +342,13 @@ export default function Home() {
                             onClick={() =>
                               handlePlayerAction(
                                 PlayerActionType.Bet,
-                                gameState.bigBlind
+                                gameState.bigBlind / LAMPORTS_PER_SOL
                               )
                             }
                             disabled={loading}
                             className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
                           >
-                            Bet {gameState.bigBlind / 1e9} SOL
+                            Bet {(gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)} SOL
                           </button>
                           <button
                             onClick={handleAdvancePhase}

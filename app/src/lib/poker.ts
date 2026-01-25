@@ -1,4 +1,4 @@
-import { Program, AnchorProvider, Wallet, Idl } from "@coral-xyz/anchor";
+import { Program, AnchorProvider, Wallet, Idl, BN } from "@coral-xyz/anchor";
 import { Connection, PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
 import IDL_JSON from "../idl/private_poker.json";
 
@@ -60,30 +60,39 @@ export class PokerClient {
   }
 
   /**
+   * Helper to convert number to little-endian 8-byte buffer (u64)
+   */
+  private numberToLeBytes(num: number): Buffer {
+    const buffer = Buffer.allocUnsafe(8);
+    buffer.writeBigUInt64LE(BigInt(num), 0);
+    return buffer;
+  }
+
+  /**
    * Initialize a new poker game
    */
   async initializeGame(gameId: number, buyIn: number): Promise<string> {
     const [gamePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game"), Buffer.from(gameId.toString())],
+      [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
     const [playerStatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         this.wallet.publicKey.toBuffer(),
       ],
       this.program.programId
     );
 
     const [vaultPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game_vault"), Buffer.from(gameId.toString())],
+      [Buffer.from("game_vault"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
     const tx = await this.program.methods
-      .initializeGame(gameId, buyIn)
+      .initializeGame(new BN(gameId), new BN(buyIn))
       .accounts({
         game: gamePda,
         player1State: playerStatePda,
@@ -101,26 +110,26 @@ export class PokerClient {
    */
   async joinGame(gameId: number): Promise<string> {
     const [gamePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game"), Buffer.from(gameId.toString())],
+      [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
     const [playerStatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         this.wallet.publicKey.toBuffer(),
       ],
       this.program.programId
     );
 
     const [vaultPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game_vault"), Buffer.from(gameId.toString())],
+      [Buffer.from("game_vault"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
     const tx = await this.program.methods
-      .joinGame(gameId)
+      .joinGame(new BN(gameId))
       .accounts({
         game: gamePda,
         player2State: playerStatePda,
@@ -138,12 +147,12 @@ export class PokerClient {
    */
   async setDeckSeed(gameId: number, seed: number[]): Promise<string> {
     const [gamePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game"), Buffer.from(gameId.toString())],
+      [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
     const tx = await this.program.methods
-      .setDeckSeed(gameId, seed)
+      .setDeckSeed(new BN(gameId), seed)
       .accounts({
         game: gamePda,
         payer: this.wallet.publicKey,
@@ -162,7 +171,7 @@ export class PokerClient {
     player2Hand: number[]
   ): Promise<string> {
     const [gamePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game"), Buffer.from(gameId.toString())],
+      [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
@@ -174,7 +183,7 @@ export class PokerClient {
     const [player1StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         player1.toBuffer(),
       ],
       this.program.programId
@@ -183,14 +192,14 @@ export class PokerClient {
     const [player2StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         player2.toBuffer(),
       ],
       this.program.programId
     );
 
     const tx = await this.program.methods
-      .dealCards(gameId, player1Hand, player2Hand)
+      .dealCards(new BN(gameId), player1Hand, player2Hand)
       .accounts({
         game: gamePda,
         player1State: player1StatePda,
@@ -211,7 +220,7 @@ export class PokerClient {
     amount?: number
   ): Promise<string> {
     const [gamePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game"), Buffer.from(gameId.toString())],
+      [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
@@ -222,7 +231,7 @@ export class PokerClient {
     const [player1StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         player1.toBuffer(),
       ],
       this.program.programId
@@ -231,19 +240,19 @@ export class PokerClient {
     const [player2StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         player2.toBuffer(),
       ],
       this.program.programId
     );
 
     const [vaultPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game_vault"), Buffer.from(gameId.toString())],
+      [Buffer.from("game_vault"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
     const tx = await this.program.methods
-      .playerAction(gameId, { [action.toLowerCase()]: {} }, amount ? amount : null)
+      .playerAction(new BN(gameId), { [action.toLowerCase()]: {} }, amount ? new BN(amount) : null)
       .accounts({
         game: gamePda,
         player1State: player1StatePda,
@@ -262,7 +271,7 @@ export class PokerClient {
    */
   async advancePhase(gameId: number): Promise<string> {
     const [gamePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game"), Buffer.from(gameId.toString())],
+      [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
@@ -273,7 +282,7 @@ export class PokerClient {
     const [player1StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         player1.toBuffer(),
       ],
       this.program.programId
@@ -282,14 +291,14 @@ export class PokerClient {
     const [player2StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         player2.toBuffer(),
       ],
       this.program.programId
     );
 
     const tx = await this.program.methods
-      .advancePhase(gameId)
+      .advancePhase(new BN(gameId))
       .accounts({
         game: gamePda,
         player1State: player1StatePda,
@@ -306,7 +315,7 @@ export class PokerClient {
    */
   async resolveGame(gameId: number, winner: PublicKey): Promise<string> {
     const [gamePda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game"), Buffer.from(gameId.toString())],
+      [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
@@ -317,7 +326,7 @@ export class PokerClient {
     const [player1StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         player1.toBuffer(),
       ],
       this.program.programId
@@ -326,14 +335,14 @@ export class PokerClient {
     const [player2StatePda] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("player_state"),
-        Buffer.from(gameId.toString()),
+        this.numberToLeBytes(gameId),
         player2.toBuffer(),
       ],
       this.program.programId
     );
 
     const [vaultPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from("game_vault"), Buffer.from(gameId.toString())],
+      [Buffer.from("game_vault"), this.numberToLeBytes(gameId)],
       this.program.programId
     );
 
@@ -369,7 +378,7 @@ export class PokerClient {
   async getGame(gameId: number): Promise<GameState | null> {
     try {
       const [gamePda] = PublicKey.findProgramAddressSync(
-        [Buffer.from("game"), Buffer.from(gameId.toString())],
+        [Buffer.from("game"), this.numberToLeBytes(gameId)],
         this.program.programId
       );
 
@@ -389,7 +398,11 @@ export class PokerClient {
         lastActionTs: game.lastActionTs.toNumber(),
         winner: game.winner,
       };
-    } catch (error) {
+    } catch (error: any) {
+      // Game doesn't exist yet - this is normal if no game has been created
+      if (error.message?.includes("Account does not exist")) {
+        return null;
+      }
       console.error("Error fetching game:", error);
       return null;
     }
@@ -406,7 +419,7 @@ export class PokerClient {
       const [playerStatePda] = PublicKey.findProgramAddressSync(
         [
           Buffer.from("player_state"),
-          Buffer.from(gameId.toString()),
+          this.numberToLeBytes(gameId),
           player.toBuffer(),
         ],
         this.program.programId
