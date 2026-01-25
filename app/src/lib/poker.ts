@@ -1,7 +1,8 @@
-import { Program, AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import { Program, AnchorProvider, Wallet, Idl } from "@coral-xyz/anchor";
 import { Connection, PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
-import { IDL } from "../../../target/idl/private_poker";
-import { PROGRAM_ID } from "../config";
+import IDL_JSON from "../idl/private_poker.json";
+
+const IDL = IDL_JSON as Idl;
 
 export interface GameState {
   gameId: number;
@@ -55,7 +56,7 @@ export class PokerClient {
     const provider = new AnchorProvider(connection, wallet, {
       commitment: "confirmed",
     });
-    this.program = new Program(IDL, PROGRAM_ID, provider);
+    this.program = new Program(IDL, provider);
   }
 
   /**
@@ -142,7 +143,7 @@ export class PokerClient {
     );
 
     const tx = await this.program.methods
-      .setDeckSeed(seed)
+      .setDeckSeed(gameId, seed)
       .accounts({
         game: gamePda,
         payer: this.wallet.publicKey,
@@ -189,7 +190,7 @@ export class PokerClient {
     );
 
     const tx = await this.program.methods
-      .dealCards(player1Hand, player2Hand)
+      .dealCards(gameId, player1Hand, player2Hand)
       .accounts({
         game: gamePda,
         player1State: player1StatePda,
@@ -242,7 +243,7 @@ export class PokerClient {
     );
 
     const tx = await this.program.methods
-      .playerAction({ [action.toLowerCase()]: {} }, amount ? amount : null)
+      .playerAction(gameId, { [action.toLowerCase()]: {} }, amount ? amount : null)
       .accounts({
         game: gamePda,
         player1State: player1StatePda,
@@ -288,7 +289,7 @@ export class PokerClient {
     );
 
     const tx = await this.program.methods
-      .advancePhase()
+      .advancePhase(gameId)
       .accounts({
         game: gamePda,
         player1State: player1StatePda,
