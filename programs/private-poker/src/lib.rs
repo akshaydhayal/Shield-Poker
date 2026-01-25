@@ -409,7 +409,6 @@ pub mod private_poker {
     }
 
     /// Delegate account to PER
-    #[delegate]
     pub fn delegate_pda(ctx: Context<DelegatePda>, account_type: AccountType) -> Result<()> {
         let seed_data = derive_seeds_from_account_type(&account_type);
         let seeds_refs: Vec<&[u8]> = seed_data.iter().map(|s| s.as_slice()).collect();
