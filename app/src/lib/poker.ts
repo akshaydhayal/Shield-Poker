@@ -407,9 +407,9 @@ export class PokerClient {
   }
 
   /**
-   * Resolve game and determine winner
+   * Resolve game and determine winner (winner is auto-determined in program)
    */
-  async resolveGame(gameId: number, winner: PublicKey): Promise<string> {
+  async resolveGame(gameId: number, winner?: PublicKey): Promise<string> {
     const [gamePda] = PublicKey.findProgramAddressSync(
       [Buffer.from("game"), this.numberToLeBytes(gameId)],
       this.program.programId
@@ -418,6 +418,9 @@ export class PokerClient {
     const game = await (this.program.account as any).game.fetch(gamePda);
     const player1 = game.player1!;
     const player2 = game.player2!;
+    
+    // Use winner from game state if not provided (auto-determined in Showdown)
+    const actualWinner = winner || game.winner || player1;
 
     const [player1StatePda] = PublicKey.findProgramAddressSync(
       [
@@ -442,26 +445,16 @@ export class PokerClient {
       this.program.programId
     );
 
-    // Permission PDAs (simplified - in production, derive properly)
-    const permissionProgram = new PublicKey(
-      "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
-    );
-
     const tx = await this.program.methods
-      .resolveGame(winner)
+      .resolveGame(actualWinner)
       .accounts({
         game: gamePda,
         player1State: player1StatePda,
         player2State: player2StatePda,
         gameVault: vaultPda,
-        winner: winner,
-        permissionGame: PublicKey.default, // TODO: Derive properly
-        permission1: PublicKey.default, // TODO: Derive properly
-        permission2: PublicKey.default, // TODO: Derive properly
+        winner: actualWinner,
         payer: this.wallet.publicKey,
-        permissionProgram: permissionProgram,
-        magicProgram: PublicKey.default, // TODO: Get from MagicBlock
-        magicContext: PublicKey.default, // TODO: Get from MagicBlock
+        systemProgram: SystemProgram.programId,
       })
       .rpc();
 

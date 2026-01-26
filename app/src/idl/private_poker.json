@@ -912,36 +912,18 @@
           "writable": true
         },
         {
-          "name": "permission_game",
-          "writable": true
-        },
-        {
-          "name": "permission1",
-          "writable": true
-        },
-        {
-          "name": "permission2",
-          "writable": true
-        },
-        {
           "name": "payer",
           "writable": true,
           "signer": true
         },
         {
-          "name": "permission_program",
-          "address": "ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1"
-        },
-        {
-          "name": "magic_program"
-        },
-        {
-          "name": "magic_context"
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "winner",
+          "name": "_winner",
           "type": "pubkey"
         }
       ]

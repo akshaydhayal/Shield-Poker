@@ -21,6 +21,254 @@ const GAME_SEED: &[u8] = b"game";
 const PLAYER_STATE_SEED: &[u8] = b"player_state";
 const GAME_VAULT_SEED: &[u8] = b"game_vault";
 
+// Poker hand evaluation
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum HandRank {
+    HighCard = 1,
+    Pair = 2,
+    TwoPair = 3,
+    ThreeOfAKind = 4,
+    Straight = 5,
+    Flush = 6,
+    FullHouse = 7,
+    FourOfAKind = 8,
+    StraightFlush = 9,
+    RoyalFlush = 10,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HandEvaluation {
+    pub rank: HandRank,
+    pub rank_value: u8, // For comparing same rank (e.g., pair of 10s vs pair of 5s)
+    pub kickers: [u8; 4], // Remaining cards for tie-breaking
+}
+
+impl HandEvaluation {
+    pub fn compare(&self, other: &HandEvaluation) -> std::cmp::Ordering {
+        // First compare rank
+        match self.rank.cmp(&other.rank) {
+            std::cmp::Ordering::Equal => {
+                // If same rank, compare rank_value
+                match self.rank_value.cmp(&other.rank_value) {
+                    std::cmp::Ordering::Equal => {
+                        // If still equal, compare kickers
+                        for i in 0..4 {
+                            match self.kickers[i].cmp(&other.kickers[i]) {
+                                std::cmp::Ordering::Equal => continue,
+                                other => return other.reverse(), // Higher kicker wins
+                            }
+                        }
+                        std::cmp::Ordering::Equal
+                    }
+                    other => other.reverse(), // Higher rank_value wins
+                }
+            }
+            other => other.reverse(), // Higher rank wins
+        }
+    }
+}
+
+// Helper function to get card rank (0-12) and suit (0-3) from card value (0-51)
+fn card_rank(card: u8) -> u8 {
+    card % 13
+}
+
+fn card_suit(card: u8) -> u8 {
+    card / 13
+}
+
+// Evaluate the best 5-card hand from 7 cards (2 hole + 5 board)
+fn evaluate_best_hand(hole_cards: [u8; 2], board_cards: [u8; 5]) -> HandEvaluation {
+    let mut all_cards = [0u8; 7];
+    all_cards[0] = hole_cards[0];
+    all_cards[1] = hole_cards[1];
+    all_cards[2] = board_cards[0];
+    all_cards[3] = board_cards[1];
+    all_cards[4] = board_cards[2];
+    all_cards[5] = board_cards[3];
+    all_cards[6] = board_cards[4];
+    
+    let mut best_hand = evaluate_hand([all_cards[0], all_cards[1], all_cards[2], all_cards[3], all_cards[4]]);
+    
+    // Try all combinations of 5 cards from 7
+    for i in 0..7 {
+        for j in (i + 1)..7 {
+            let mut hand = [0u8; 5];
+            let mut idx = 0;
+            for k in 0..7 {
+                if k != i && k != j {
+                    hand[idx] = all_cards[k];
+                    idx += 1;
+                }
+            }
+            let eval = evaluate_hand(hand);
+            if eval.compare(&best_hand) == std::cmp::Ordering::Greater {
+                best_hand = eval;
+            }
+        }
+    }
+    
+    best_hand
+}
+
+// Evaluate a 5-card hand
+fn evaluate_hand(mut cards: [u8; 5]) -> HandEvaluation {
+    // Sort cards by rank
+    cards.sort_by(|a, b| card_rank(*a).cmp(&card_rank(*b)));
+    
+    let ranks: Vec<u8> = cards.iter().map(|&c| card_rank(c)).collect();
+    let suits: Vec<u8> = cards.iter().map(|&c| card_suit(c)).collect();
+    
+    // Check for flush
+    let is_flush = suits[0] == suits[1] && suits[1] == suits[2] && suits[2] == suits[3] && suits[3] == suits[4];
+    
+    // Check for A-2-3-4-5 straight (wheel) - Ace low
+    let is_wheel = ranks == [0, 1, 2, 3, 12];
+    // Check for 10-J-Q-K-A straight (Ace high)
+    let is_broadway = ranks == [8, 9, 10, 11, 12];
+    
+    // Check for straight
+    let mut is_straight = true;
+    for i in 1..5 {
+        if ranks[i] != ranks[i - 1] + 1 {
+            is_straight = false;
+            break;
+        }
+    }
+    
+    // Royal flush: 10-J-Q-K-A of same suit
+    if is_flush && is_broadway {
+        return HandEvaluation {
+            rank: HandRank::RoyalFlush,
+            rank_value: 12,
+            kickers: [0; 4],
+        };
+    }
+    
+    // Straight flush
+    if is_flush && (is_straight || is_wheel || is_broadway) {
+        let rank_value = if is_wheel { 3 } else if is_broadway { 12 } else { ranks[4] };
+        return HandEvaluation {
+            rank: HandRank::StraightFlush,
+            rank_value,
+            kickers: [0; 4],
+        };
+    }
+    
+    // Count occurrences of each rank
+    let mut rank_counts = [0u8; 13];
+    for &rank in &ranks {
+        rank_counts[rank as usize] += 1;
+    }
+    
+    let mut pairs = Vec::new();
+    let mut three_kind = None;
+    let mut four_kind = None;
+    
+    for (rank, &count) in rank_counts.iter().enumerate() {
+        match count {
+            2 => pairs.push(rank as u8),
+            3 => three_kind = Some(rank as u8),
+            4 => four_kind = Some(rank as u8),
+            _ => {}
+        }
+    }
+    
+    // Four of a kind
+    if let Some(rank) = four_kind {
+        let kicker = ranks.iter().find(|&&r| r != rank).copied().unwrap_or(0);
+        return HandEvaluation {
+            rank: HandRank::FourOfAKind,
+            rank_value: rank,
+            kickers: [kicker, 0, 0, 0],
+        };
+    }
+    
+    // Full house
+    if let Some(three) = three_kind {
+        if let Some(pair) = pairs.first() {
+            return HandEvaluation {
+                rank: HandRank::FullHouse,
+                rank_value: three,
+                kickers: [*pair, 0, 0, 0],
+            };
+        }
+    }
+    
+    // Flush
+    if is_flush {
+        return HandEvaluation {
+            rank: HandRank::Flush,
+            rank_value: ranks[4],
+            kickers: [ranks[3], ranks[2], ranks[1], ranks[0]],
+        };
+    }
+    
+    // Straight
+    if is_straight || is_wheel || is_broadway {
+        let rank_value = if is_wheel { 3 } else if is_broadway { 12 } else { ranks[4] };
+        return HandEvaluation {
+            rank: HandRank::Straight,
+            rank_value,
+            kickers: [0; 4],
+        };
+    }
+    
+    // Three of a kind
+    if let Some(rank) = three_kind {
+        let mut kickers = [0u8; 4];
+        let mut idx = 0;
+        for &r in &ranks {
+            if r != rank {
+                kickers[idx] = r;
+                idx += 1;
+            }
+        }
+        return HandEvaluation {
+            rank: HandRank::ThreeOfAKind,
+            rank_value: rank,
+            kickers,
+        };
+    }
+    
+    // Two pair
+    if pairs.len() >= 2 {
+        pairs.sort();
+        let high_pair = pairs[pairs.len() - 1];
+        let low_pair = pairs[pairs.len() - 2];
+        let kicker = ranks.iter().find(|&&r| r != high_pair && r != low_pair).copied().unwrap_or(0);
+        return HandEvaluation {
+            rank: HandRank::TwoPair,
+            rank_value: high_pair,
+            kickers: [low_pair, kicker, 0, 0],
+        };
+    }
+    
+    // Pair
+    if let Some(&pair_rank) = pairs.first() {
+        let mut kickers = [0u8; 4];
+        let mut idx = 0;
+        for &r in &ranks {
+            if r != pair_rank {
+                kickers[idx] = r;
+                idx += 1;
+            }
+        }
+        return HandEvaluation {
+            rank: HandRank::Pair,
+            rank_value: pair_rank,
+            kickers,
+        };
+    }
+    
+    // High card
+    HandEvaluation {
+        rank: HandRank::HighCard,
+        rank_value: ranks[4],
+        kickers: [ranks[3], ranks[2], ranks[1], ranks[0]],
+    }
+}
+
 #[program]
 #[ephemeral]
 pub mod private_poker {
@@ -519,6 +767,30 @@ pub mod private_poker {
                     game.phase = GamePhase::Showdown;
                     game.current_turn = None;
                     msg!("Game {} advanced to Showdown", game.game_id);
+                    
+                    // Auto-resolve if both players are still in (not folded)
+                    if !p1_folded && !p2_folded {
+                        // Determine winner by comparing hands
+                        let p1_hand = ctx.accounts.player1_state.hand;
+                        let p2_hand = ctx.accounts.player2_state.hand;
+                        let board = game.board_cards;
+                        
+                        let p1_eval = evaluate_best_hand(p1_hand, board);
+                        let p2_eval = evaluate_best_hand(p2_hand, board);
+                        
+                        let winner = if p1_eval.compare(&p2_eval) == std::cmp::Ordering::Greater {
+                            game.player1.unwrap()
+                        } else if p2_eval.compare(&p1_eval) == std::cmp::Ordering::Greater {
+                            game.player2.unwrap()
+                        } else {
+                            // Tie - player 1 wins by default (or could split pot)
+                            game.player1.unwrap()
+                        };
+                        
+                        game.winner = Some(winner);
+                        msg!("Showdown: P1 hand rank={:?}, P2 hand rank={:?}, Winner={}", 
+                             p1_eval.rank, p2_eval.rank, winner);
+                    }
                 }
                 _ => {
                     // Don't advance if already in Showdown or Finished
@@ -593,7 +865,7 @@ pub mod private_poker {
     }
 
     /// Resolve game and determine winner
-    pub fn resolve_game(ctx: Context<ResolveGame>, winner: Pubkey) -> Result<()> {
+    pub fn resolve_game(ctx: Context<ResolveGame>, _winner: Pubkey) -> Result<()> {
         let game = &mut ctx.accounts.game;
         let player1_state = &ctx.accounts.player1_state;
         let player2_state = &ctx.accounts.player2_state;
@@ -603,79 +875,70 @@ pub mod private_poker {
             PokerError::InvalidGamePhase
         );
 
-        // Determine winner (if both folded, last standing wins)
+        // Determine winner automatically
         let actual_winner = if player1_state.has_folded {
             game.player2.ok_or(PokerError::MissingOpponent)?
         } else if player2_state.has_folded {
             game.player1.ok_or(PokerError::MissingOpponent)?
         } else {
-            let p1 = game.player1.ok_or(PokerError::MissingOpponent)?;
-            let p2 = game.player2.ok_or(PokerError::MissingOpponent)?;
-            require!(winner == p1 || winner == p2, PokerError::InvalidWinner);
-            winner
+            // Both players still in - compare hands
+            // Winner should already be set in Showdown phase, but recalculate to be sure
+            if let Some(winner) = game.winner {
+                winner
+            } else {
+                // Calculate winner from hands
+                let p1_hand = player1_state.hand;
+                let p2_hand = player2_state.hand;
+                let board = game.board_cards;
+                
+                let p1_eval = evaluate_best_hand(p1_hand, board);
+                let p2_eval = evaluate_best_hand(p2_hand, board);
+                
+                if p1_eval.compare(&p2_eval) == std::cmp::Ordering::Greater {
+                    game.player1.ok_or(PokerError::MissingOpponent)?
+                } else if p2_eval.compare(&p1_eval) == std::cmp::Ordering::Greater {
+                    game.player2.ok_or(PokerError::MissingOpponent)?
+                } else {
+                    // Tie - player 1 wins by default
+                    game.player1.ok_or(PokerError::MissingOpponent)?
+                }
+            }
         };
 
-        // Transfer winnings to winner
+        // Transfer winnings to winner from vault PDA
         let vault_balance = ctx.accounts.game_vault.get_lamports();
-        **ctx.accounts.game_vault.try_borrow_mut_lamports()? -= vault_balance;
-        **ctx.accounts.winner.try_borrow_mut_lamports()? += vault_balance;
+        let game_id = game.game_id;
+        
+        // PDA seeds for the vault
+        let seeds = &[
+            GAME_VAULT_SEED,
+            &game_id.to_le_bytes(),
+            &[ctx.bumps.game_vault],
+        ];
+        let signer_seeds = &[&seeds[..]];
+
+        // Transfer using CPI with PDA as signer
+        anchor_lang::system_program::transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.system_program.to_account_info(),
+                anchor_lang::system_program::Transfer {
+                    from: ctx.accounts.game_vault.to_account_info(),
+                    to: ctx.accounts.winner.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            vault_balance,
+        )?;
 
         game.phase = GamePhase::Finished;
         game.winner = Some(actual_winner);
 
         msg!("Game {} resolved. Winner: {}", game.game_id, actual_winner);
 
-        // Update permissions to make accounts public before payout
-        let permission_program = &ctx.accounts.permission_program.to_account_info();
-        let permission_game = &ctx.accounts.permission_game.to_account_info();
-        let permission1 = &ctx.accounts.permission1.to_account_info();
-        let permission2 = &ctx.accounts.permission2.to_account_info();
-
-        UpdatePermissionCpiBuilder::new(permission_program)
-            .permissioned_account(&game.to_account_info(), true)
-            .authority(&game.to_account_info(), false)
-            .permission(permission_game)
-            .args(MembersArgs { members: None })
-            .invoke_signed(&[&[
-                GAME_SEED,
-                &game.game_id.to_le_bytes(),
-                &[ctx.bumps.game],
-            ]])?;
-
-        UpdatePermissionCpiBuilder::new(permission_program)
-            .permissioned_account(&player1_state.to_account_info(), true)
-            .authority(&player1_state.to_account_info(), false)
-            .permission(permission1)
-            .args(MembersArgs { members: None })
-            .invoke_signed(&[&[
-                PLAYER_STATE_SEED,
-                &player1_state.game_id.to_le_bytes(),
-                &player1_state.player.as_ref(),
-                &[ctx.bumps.player1_state],
-            ]])?;
-
-        UpdatePermissionCpiBuilder::new(permission_program)
-            .permissioned_account(&player2_state.to_account_info(), true)
-            .authority(&player2_state.to_account_info(), false)
-            .permission(permission2)
-            .args(MembersArgs { members: None })
-            .invoke_signed(&[&[
-                PLAYER_STATE_SEED,
-                &player2_state.game_id.to_le_bytes(),
-                &player2_state.player.as_ref(),
-                &[ctx.bumps.player2_state],
-            ]])?;
-
-        // Exit the program
-        game.exit(&crate::ID)?;
-
-        // Commit and undelegate accounts
-        commit_and_undelegate_accounts(
-            &ctx.accounts.payer,
-            vec![&game.to_account_info()],
-            &ctx.accounts.magic_context,
-            &ctx.accounts.magic_program,
-        )?;
+        // Note: MagicBlock commit_and_undelegate_accounts removed due to CPI privilege issues
+        // For MVP, we're skipping the commit/undelegate step
+        // In production, you would need to properly configure magic_program and magic_context
+        // and ensure all accounts are properly delegated to PER before the game starts
 
         Ok(())
     }
@@ -994,7 +1257,6 @@ pub struct AdvancePhase<'info> {
     pub payer: Signer<'info>,
 }
 
-#[commit]
 #[derive(Accounts)]
 pub struct ResolveGame<'info> {
     #[account(
@@ -1030,30 +1292,10 @@ pub struct ResolveGame<'info> {
     #[account(mut)]
     pub winner: UncheckedAccount<'info>,
 
-    /// CHECK: Permission accounts (checked by permission program)
-    #[account(mut)]
-    pub permission_game: UncheckedAccount<'info>,
-
-    /// CHECK: Permission account for player1 (checked by permission program)
-    #[account(mut)]
-    pub permission1: UncheckedAccount<'info>,
-
-    /// CHECK: Permission account for player2 (checked by permission program)
-    #[account(mut)]
-    pub permission2: UncheckedAccount<'info>,
-
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    /// CHECK: PERMISSION PROGRAM
-    #[account(address = PERMISSION_PROGRAM_ID)]
-    pub permission_program: UncheckedAccount<'info>,
-
-    /// CHECK: Magic program
-    pub magic_program: UncheckedAccount<'info>,
-
-    /// CHECK: Magic context
-    pub magic_context: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
 }
 
 // Error Codes

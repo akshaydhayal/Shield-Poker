@@ -351,6 +351,28 @@ export default function GamePage() {
     }
   };
 
+  // Auto-resolve game when in Showdown phase
+  useEffect(() => {
+    if (pokerClient && gameId && gameState && gameState.phase === GamePhase.Showdown && !loading) {
+      const autoResolve = async () => {
+        try {
+          setLoading(true);
+          console.log("Auto-resolving game in Showdown phase...");
+          await pokerClient.resolveGame(gameId);
+          // Wait a bit for transaction to confirm
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await fetchGameState();
+        } catch (err: any) {
+          console.error("Error auto-resolving game:", err);
+          setError(err.message || "Failed to resolve game");
+        } finally {
+          setLoading(false);
+        }
+      };
+      autoResolve();
+    }
+  }, [pokerClient, gameId, gameState?.phase, loading]);
+
   useEffect(() => {
     if (pokerClient && gameId) {
       fetchGameState();
@@ -557,6 +579,73 @@ export default function GamePage() {
                         </div>
                       )
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* Showdown Results */}
+              {gameState.phase === GamePhase.Showdown && player1State && player2State && (
+                <div className="bg-yellow-500/20 rounded-lg p-6 border-2 border-yellow-500">
+                  <h2 className="text-2xl font-bold text-yellow-300 mb-4 text-center">🎴 SHOWDOWN</h2>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    {/* Player 1 Hand */}
+                    <div className="bg-white/10 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        Player 1 {publicKey && gameState.player1?.equals(publicKey) && "(You)"}
+                      </h3>
+                      <div className="flex gap-2">
+                        {player1State.hand.map((card, idx) => (
+                          <CardComponent key={idx} cardValue={card} />
+                        ))}
+                      </div>
+                    </div>
+                    {/* Player 2 Hand */}
+                    <div className="bg-white/10 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-2">
+                        Player 2 {publicKey && gameState.player2?.equals(publicKey) && "(You)"}
+                      </h3>
+                      <div className="flex gap-2">
+                        {player2State.hand.map((card, idx) => (
+                          <CardComponent key={idx} cardValue={card} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  {gameState.winner && (
+                    <div className="text-center">
+                      <p className="text-white/70 text-sm mb-1">Winner</p>
+                      <p className="text-3xl font-bold text-yellow-300">
+                        {gameState.winner.equals(gameState.player1!) 
+                          ? "Player 1 Wins!" 
+                          : "Player 2 Wins!"}
+                      </p>
+                      <p className="text-white/50 text-sm mt-2">
+                        Pot: {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                      </p>
+                    </div>
+                  )}
+                  {loading && (
+                    <div className="text-center mt-4">
+                      <p className="text-yellow-300">Resolving game and distributing pot...</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Game Finished */}
+              {gameState.phase === GamePhase.Finished && gameState.winner && (
+                <div className="bg-green-500/20 rounded-lg p-6 border-2 border-green-500">
+                  <h2 className="text-2xl font-bold text-green-300 mb-4 text-center">🏆 GAME FINISHED</h2>
+                  <div className="text-center">
+                    <p className="text-white/70 text-sm mb-1">Winner</p>
+                    <p className="text-3xl font-bold text-green-300">
+                      {gameState.winner.equals(gameState.player1!) 
+                        ? "Player 1 Wins!" 
+                        : "Player 2 Wins!"}
+                    </p>
+                    <p className="text-white/50 text-sm mt-2">
+                      Pot Distributed: {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                    </p>
                   </div>
                 </div>
               )}
