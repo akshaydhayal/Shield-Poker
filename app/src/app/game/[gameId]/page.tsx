@@ -149,143 +149,6 @@ export default function GamePage() {
     }
   };
 
-
-  const handleSetDeckSeed = async () => {
-    if (!pokerClient) {
-      setError("Poker client not initialized");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      let seed: number[];
-      if (deckSeedInput.trim() === "") {
-        seed = Array.from(crypto.getRandomValues(new Uint8Array(32)));
-      } else {
-        if (deckSeedInput.includes(",")) {
-          seed = deckSeedInput.split(",").map(s => parseInt(s.trim(), 10));
-        } else {
-          seed = Array.from(Buffer.from(deckSeedInput, "hex"));
-        }
-      }
-      
-      if (seed.length !== 32) {
-        throw new Error("Seed must be 32 bytes (32 numbers or 64 hex characters)");
-      }
-      
-      const tx = await pokerClient.setDeckSeed(gameId, seed);
-      console.log("Deck seed set:", tx);
-      await fetchGameState();
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || "Failed to set deck seed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Generate random unique cards using deck seed
-  const generateUniqueCards = (deckSeed: number[]): { player1Hand: number[], player2Hand: number[] } => {
-    // Validate deck seed
-    if (!deckSeed || deckSeed.length !== 32) {
-      throw new Error("Invalid deck seed");
-    }
-    
-    // Create a full deck (0-51) - each card is unique
-    const deck: number[] = Array.from({ length: 52 }, (_, i) => i);
-    
-    // Initialize seed from deck seed bytes using a more robust method
-    let seed = 0;
-    for (let i = 0; i < deckSeed.length; i++) {
-      // Combine seed bytes with multiplication and addition for better distribution
-      seed = ((seed * 31) + (deckSeed[i] & 0xff)) >>> 0;
-    }
-    
-    // Ensure seed is non-zero and odd (for better LCG behavior)
-    if (seed === 0) {
-      seed = 1;
-    }
-    if (seed % 2 === 0) {
-      seed += 1;
-    }
-    
-    // Linear Congruential Generator (LCG) for seeded random
-    // Using better LCG parameters
-    const a = 1664525;
-    const c = 1013904223;
-    const m = 0x100000000; // 2^32
-    
-    const seededRandom = () => {
-      seed = ((seed * a + c) % m) >>> 0;
-      return seed / m;
-    };
-    
-    // Fisher-Yates shuffle with seeded random
-    // This guarantees each card appears exactly once
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(seededRandom() * (i + 1));
-      // Swap deck[i] and deck[j]
-      const temp = deck[i];
-      deck[i] = deck[j];
-      deck[j] = temp;
-    }
-    
-    // Verify deck still has all unique cards after shuffle
-    const deckSet = new Set(deck);
-    if (deckSet.size !== 52) {
-      throw new Error("Deck shuffle failed - duplicate cards in deck!");
-    }
-    
-    // Deal first 2 cards to player 1, next 2 to player 2
-    const player1Hand = [deck[0], deck[1]];
-    const player2Hand = [deck[2], deck[3]];
-    
-    // Final verification - this should ALWAYS pass with proper shuffle
-    const allCards = [...player1Hand, ...player2Hand];
-    const uniqueSet = new Set(allCards);
-    
-    if (uniqueSet.size !== allCards.length) {
-      const duplicates = allCards.filter((card, index) => allCards.indexOf(card) !== index);
-      console.error("CRITICAL ERROR: Duplicate cards after shuffle!", {
-        player1Hand,
-        player2Hand,
-        allCards,
-        duplicates,
-        deck: deck.slice(0, 10) // First 10 cards for debugging
-      });
-      
-      // Emergency fallback: manually select 4 unique cards
-      const selectedCards: number[] = [];
-      const usedCards = new Set<number>();
-      
-      while (selectedCards.length < 4) {
-        const randomCard = Math.floor(seededRandom() * 52);
-        if (!usedCards.has(randomCard)) {
-          selectedCards.push(randomCard);
-          usedCards.add(randomCard);
-        }
-        // Safety check to prevent infinite loop
-        if (usedCards.size > 50) {
-          throw new Error("Failed to generate unique cards after multiple attempts");
-        }
-      }
-      
-      return {
-        player1Hand: [selectedCards[0], selectedCards[1]],
-        player2Hand: [selectedCards[2], selectedCards[3]]
-      };
-    }
-    
-    // Log for debugging
-    console.log("Successfully generated unique cards:", {
-      player1Hand: player1Hand.map(c => `Card ${c} (${Math.floor(c/13)}-${c%13})`),
-      player2Hand: player2Hand.map(c => `Card ${c} (${Math.floor(c/13)}-${c%13})`),
-      allUnique: uniqueSet.size === allCards.length
-    });
-    
-    return { player1Hand, player2Hand };
-  };
-
   const handleDealCards = async () => {
     if (!pokerClient || !gameState) {
       setError("Poker client or game state not initialized");
@@ -294,18 +157,10 @@ export default function GamePage() {
 
     try {
       setLoading(true);
-      
-      // Cards are shuffled on-chain using a client-generated random seed
-      // The seed is generated using crypto.getRandomValues() for cryptographically secure randomness
       console.log("Generating random seed and requesting card shuffle...");
-      
       const tx = await pokerClient.shuffleAndDealCards(gameId);
       console.log("Cards shuffled and dealt:", tx);
-      
-      // Wait for transaction to confirm
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Refresh game state to see the dealt cards
       await fetchGameState();
       setError(null);
     } catch (err: any) {
@@ -328,21 +183,11 @@ export default function GamePage() {
           pokerClient.getPlayerState(gameId, state.player1),
           pokerClient.getPlayerState(gameId, state.player2),
         ]);
-        console.log("Fetched player states:", {
-          player1: state.player1.toBase58(),
-          player2: state.player2.toBase58(),
-          p1State: p1State ? { hand: p1State.hand, player: p1State.player.toBase58() } : null,
-          p2State: p2State ? { hand: p2State.hand, player: p2State.player.toBase58() } : null,
-        });
         setPlayer1State(p1State);
         setPlayer2State(p2State);
       } else {
         setPlayer1State(null);
         setPlayer2State(null);
-      }
-      
-      if (state === null) {
-        setError(null);
       }
     } catch (err) {
       if (err instanceof Error && !err.message.includes("Account does not exist")) {
@@ -359,7 +204,6 @@ export default function GamePage() {
           setLoading(true);
           console.log("Auto-resolving game in Showdown phase...");
           await pokerClient.resolveGame(gameId);
-          // Wait a bit for transaction to confirm
           await new Promise(resolve => setTimeout(resolve, 2000));
           await fetchGameState();
         } catch (err: any) {
@@ -381,514 +225,482 @@ export default function GamePage() {
     }
   }, [pokerClient, gameId]);
 
+  // Helper to get player display name
+  const getPlayerName = (playerPubkey: PublicKey | null | undefined) => {
+    if (!playerPubkey) return "Waiting...";
+    const short = playerPubkey.toBase58().slice(0, 6);
+    if (publicKey && playerPubkey.equals(publicKey)) return `You (${short})`;
+    return short;
+  };
+
+  // Helper to check if it's current player's turn
+  const isMyTurn = gameState?.currentTurn && publicKey && gameState.currentTurn.equals(publicKey);
+  
+  // Helper to check if it's player 1's turn
+  const isPlayer1Turn = gameState?.currentTurn && gameState.player1 && gameState.currentTurn.equals(gameState.player1);
+  
+  // Helper to check if it's player 2's turn
+  const isPlayer2Turn = gameState?.currentTurn && gameState.player2 && gameState.currentTurn.equals(gameState.player2);
+
   if (!gameState) {
     return (
-      <main className="min-h-screen bg-gradient-to-br from-green-900 to-green-700 p-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
-            <div className="text-center py-12">
-              <p className="text-white text-xl mb-4">Loading game...</p>
-              <button
-                onClick={() => router.push("/")}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg"
-              >
-                Back to Games
-              </button>
-            </div>
-          </div>
+      <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-white text-xl mb-4">Loading game...</p>
+          <button
+            onClick={() => router.push("/")}
+            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg"
+          >
+            Back to Games
+          </button>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-green-900 to-green-700 p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="bg-white/10 backdrop-blur-lg rounded-2xl shadow-2xl p-8">
-          <div className="flex justify-between items-center mb-8">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push("/")}
-                className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg"
-              >
-                ← Back to Games
-              </button>
-              <h1 className="text-4xl font-bold text-white">Game #{gameId}</h1>
+    <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden">
+      {/* Top Bar */}
+      <div className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center p-2 bg-black/30 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.push("/")}
+            className="text-white hover:text-green-400 transition-colors text-sm"
+          >
+            ← Back
+          </button>
+          <h1 className="text-white font-bold text-sm">Game #{gameId}</h1>
+        </div>
+        <div className="flex items-center gap-1">
+          <WalletMultiButton />
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500/90 border border-red-400 rounded-lg p-4 max-w-md">
+          <p className="text-white text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Main Poker Table Container */}
+      <div className="flex items-center justify-center min-h-screen pt-12 pb-24 px-2">
+        <div className="relative w-full max-w-4xl">
+          
+          {/* Poker Table - Green Oval */}
+          <div className="relative w-full aspect-[16/10] max-h-[55vh] bg-gradient-to-br from-green-700 via-green-800 to-green-900 rounded-[50%] shadow-2xl border-2 sm:border-3 border-green-950">
+            
+            {/* Table Felt Pattern */}
+            <div className="absolute inset-0 rounded-[50%] bg-gradient-to-br from-green-600/80 to-green-800/80" 
+                 style={{
+                   backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 1px, transparent 1px)',
+                   backgroundSize: '20px 20px'
+                 }}>
             </div>
-            <WalletMultiButton />
-          </div>
 
-          {error && (
-            <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 mb-4">
-              <p className="text-red-200">{error}</p>
-            </div>
-          )}
-
-          {!connected && (
-            <div className="text-center py-12">
-              <p className="text-white text-xl mb-4">
-                Connect your wallet to view this game
-              </p>
-            </div>
-          )}
-
-          {connected && (
-            <div className="space-y-6">
-              {/* Authorization Section */}
-              <div className="bg-white/5 rounded-lg p-6">
-                <h2 className="text-2xl font-semibold text-white mb-4">
-                  MagicBlock TEE Authorization
-                </h2>
-                {!authToken ? (
-                  <button
-                    onClick={handleAuthorize}
-                    disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-                  >
-                    {loading ? "Authorizing..." : "Authorize TEE Access"}
-                  </button>
-                ) : (
-                  <div className="text-green-300">
-                    ✓ TEE Authorized (Private Mode Active)
-                  </div>
-                )}
-              </div>
-
-              {/* Join Game Button - Show if waiting and user can join */}
-              {gameState.phase === GamePhase.Waiting && 
-               gameState.player2 === null && 
-               publicKey && 
-               !gameState.player1?.equals(publicKey) && (
-                <div className="bg-blue-500/20 rounded-lg p-6 border border-blue-400">
-                  <h3 className="text-xl font-semibold text-white mb-4">Join This Game</h3>
-                  <button
-                    onClick={handleJoinGame}
-                    disabled={loading}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50 text-lg"
-                  >
-                    Join Game
-                  </button>
-                </div>
-              )}
-
-              {/* Current Phase */}
-              <div className="text-center">
-                <p className="text-white/70 text-sm mb-2">Current Phase</p>
-                <p className="text-3xl font-bold text-yellow-300">{gameState.phase}</p>
-              </div>
-
-              {/* Game Pool Summary */}
-              <div className="grid grid-cols-2 gap-4">
-                {/* Pot Amount */}
-                <div className="text-center bg-yellow-500/20 rounded-lg p-4 border border-yellow-500/40">
-                  <p className="text-white/70 text-sm mb-1">💰 Current Pot</p>
-                  <p className="text-3xl font-bold text-yellow-300">
+            {/* Center Area - Community Cards & Pot */}
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center">
+              
+              {/* Pot Display */}
+              <div className="mb-1">
+                <div className="bg-yellow-500/90 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 inline-block shadow-lg">
+                  <p className="text-[9px] sm:text-[10px] text-gray-800 font-semibold mb-0.5">POT</p>
+                  <p className="text-sm sm:text-base md:text-lg font-bold text-gray-900">
                     {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
                   </p>
                 </div>
+              </div>
 
-                {/* Total Pool (Vault) */}
-                <div className="text-center bg-green-500/20 rounded-lg p-4 border border-green-500/40">
-                  <p className="text-white/70 text-sm mb-1">🏦 Total Pool</p>
-                  <p className="text-3xl font-bold text-green-300">
-                    {((gameState.buyIn * 2) / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                  </p>
-                  <p className="text-white/50 text-xs mt-1">
-                    (Buy-in: {(gameState.buyIn / LAMPORTS_PER_SOL).toFixed(4)} SOL × 2)
-                  </p>
+              {/* Community Cards */}
+              {gameState.boardCards && gameState.boardCards.some((c: number) => c > 0) && (
+                <div className="flex gap-0.5 sm:gap-1 justify-center items-center mb-1">
+                  {gameState.boardCards.map((card: number, idx: number) => 
+                    card > 0 ? (
+                      <div key={idx} className="transform hover:scale-110 transition-transform">
+                        <CardComponent cardValue={card} size="small" />
+                      </div>
+                    ) : (
+                      <div key={idx} className="w-10 h-14 sm:w-12 sm:h-16 bg-gradient-to-br from-gray-700 to-gray-800 border-2 border-gray-500 rounded-lg flex items-center justify-center shadow-lg">
+                        <span className="text-gray-300 text-2xl sm:text-3xl font-bold">?</span>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Current Bet */}
+              {gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished && (
+                <div className="mt-0.5">
+                  <div className="inline-flex items-center gap-1 bg-red-500/80 rounded-full px-2 py-0.5">
+                    <span className="text-white text-[9px] sm:text-[10px] font-semibold">Current Bet:</span>
+                    <span className="text-white font-bold text-[9px] sm:text-[10px]">
+                      {((gameState.bigBlind || 0) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Phase Indicator */}
+              <div className="mt-0.5 sm:mt-1">
+                <div className="bg-black/50 rounded-full px-2 py-0.5 inline-block">
+                  <p className="text-white text-[9px] sm:text-[10px] font-semibold">{gameState.phase}</p>
                 </div>
               </div>
 
-              {/* Turn Indicator */}
-              {gameState.phase !== GamePhase.Waiting && 
-               gameState.phase !== GamePhase.Finished && 
-               gameState.currentTurn && 
-               publicKey && (
-                <div className={`text-center p-4 rounded-lg ${
-                  gameState.currentTurn.equals(publicKey)
-                    ? "bg-green-500/30 border-2 border-green-400"
-                    : "bg-gray-500/20 border-2 border-gray-400"
-                }`}>
-                  {gameState.currentTurn.equals(publicKey) ? (
-                    <div>
-                      <p className="text-2xl font-bold text-green-300 mb-2">🎯 YOUR TURN</p>
-                      <p className="text-white/80">It's your turn to act!</p>
-                    </div>
-                  ) : (
-                    <div>
-                      <p className="text-2xl font-bold text-gray-300 mb-2">⏳ Waiting...</p>
-                      <p className="text-white/80">Waiting for opponent to act</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Set Deck Seed */}
-              {gameState.phase === GamePhase.PreFlop && gameState.deckSeed && gameState.deckSeed.every((b: number) => b === 0) && (
-                <div className="bg-blue-500/20 rounded-lg p-4 border border-blue-400">
-                  <h3 className="text-lg font-semibold text-white mb-3">🎲 Set Deck Seed</h3>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={deckSeedInput}
-                      onChange={(e) => setDeckSeedInput(e.target.value)}
-                      placeholder="Leave empty for random seed (32 bytes)"
-                      className="flex-1 bg-white/10 border border-white/20 rounded px-4 py-2 text-white text-sm"
-                    />
-                    <button
-                      onClick={handleSetDeckSeed}
-                      disabled={loading}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
-                    >
-                      Set Seed
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Deal Cards */}
-              {gameState.phase === GamePhase.PreFlop && 
-               (!player1State?.hand || player1State.hand.every(c => c === 0)) && (
-                <div className="bg-purple-500/20 rounded-lg p-4 border border-purple-400">
-                  <h3 className="text-lg font-semibold text-white mb-3">🃏 Shuffle & Deal Cards</h3>
-                  <p className="text-white/80 text-sm mb-4">
-                    Cards will be shuffled on-chain using a client-generated random seed. 
-                    The seed is generated using cryptographically secure randomness (crypto.getRandomValues).
-                  </p>
-                  <button
-                    onClick={handleDealCards}
-                    disabled={loading}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded disabled:opacity-50"
-                  >
-                    {loading ? "Shuffling & Dealing..." : "Shuffle & Deal Cards On-Chain"}
-                  </button>
-                </div>
-              )}
-
-              {/* Board Cards Display */}
-              {gameState.boardCards && gameState.boardCards.some((c: number) => c > 0) && (
-                <div className="bg-white/10 rounded-lg p-4">
-                  <h3 className="text-lg font-semibold text-white mb-3">🃏 Board Cards</h3>
-                  <div className="flex gap-2 flex-wrap">
-                    {gameState.boardCards.map((card: number, idx: number) => 
-                      card > 0 ? (
-                        <CardComponent key={idx} cardValue={card} />
-                      ) : (
-                        <div key={idx} className="w-16 h-24 bg-gray-800 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xs">
-                          ?
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Showdown Results */}
-              {gameState.phase === GamePhase.Showdown && player1State && player2State && (
-                <div className="bg-yellow-500/20 rounded-lg p-6 border-2 border-yellow-500">
-                  <h2 className="text-2xl font-bold text-yellow-300 mb-4 text-center">🎴 SHOWDOWN</h2>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    {/* Player 1 Hand */}
-                    <div className="bg-white/10 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2">
-                        Player 1 {publicKey && gameState.player1?.equals(publicKey) && "(You)"}
-                      </h3>
-                      <div className="flex gap-2">
-                        {player1State.hand.map((card, idx) => (
-                          <CardComponent key={idx} cardValue={card} />
-                        ))}
-                      </div>
-                    </div>
-                    {/* Player 2 Hand */}
-                    <div className="bg-white/10 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-2">
-                        Player 2 {publicKey && gameState.player2?.equals(publicKey) && "(You)"}
-                      </h3>
-                      <div className="flex gap-2">
-                        {player2State.hand.map((card, idx) => (
-                          <CardComponent key={idx} cardValue={card} />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                  {gameState.winner && (
-                    <div className="text-center">
-                      <p className="text-white/70 text-sm mb-1">Winner</p>
-                      <p className="text-3xl font-bold text-yellow-300">
-                        {gameState.winner.equals(gameState.player1!) 
-                          ? "Player 1 Wins!" 
-                          : "Player 2 Wins!"}
-                      </p>
-                      <p className="text-white/50 text-sm mt-2">
-                        Pot: {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                      </p>
-                    </div>
-                  )}
-                  {loading && (
-                    <div className="text-center mt-4">
-                      <p className="text-yellow-300">Resolving game and distributing pot...</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Game Finished */}
-              {gameState.phase === GamePhase.Finished && gameState.winner && (
-                <div className="bg-green-500/20 rounded-lg p-6 border-2 border-green-500">
-                  <h2 className="text-2xl font-bold text-green-300 mb-4 text-center">🏆 GAME FINISHED</h2>
-                  <div className="text-center">
-                    <p className="text-white/70 text-sm mb-1">Winner</p>
-                    <p className="text-3xl font-bold text-green-300">
-                      {gameState.winner.equals(gameState.player1!) 
-                        ? "Player 1 Wins!" 
-                        : "Player 2 Wins!"}
-                    </p>
-                    <p className="text-white/50 text-sm mt-2">
-                      Pot Distributed: {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
+              {/* Turn Indicator - Center of Table */}
+              {gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished && gameState.phase !== GamePhase.Showdown && gameState.currentTurn && (
+                <div className="mt-1 sm:mt-2">
+                  <div className="bg-green-500/90 rounded-full px-3 py-1 inline-flex items-center gap-1.5 animate-pulse">
+                    <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+                    <p className="text-white text-[9px] sm:text-[10px] font-bold">
+                      {isPlayer1Turn ? `${getPlayerName(gameState.player1)}'s Turn` : 
+                       isPlayer2Turn ? `${getPlayerName(gameState.player2)}'s Turn` : 
+                       "Waiting..."}
                     </p>
                   </div>
-                </div>
-              )}
-
-              {/* Player Hands and Chips Committed */}
-              {player1State && player2State && (
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Player 1 */}
-                  <div className="bg-white/10 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-semibold text-white">
-                        Player 1 {publicKey && gameState.player1?.equals(publicKey) && "(You)"}
-                      </h3>
-                      {player1State.hasFolded && (
-                        <span className="text-red-400 text-sm font-bold">FOLDED</span>
-                      )}
-                    </div>
-                    <div className="mb-3 bg-black/20 rounded p-3">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-white/70 text-sm">Buy-in</p>
-                        <p className="text-white font-semibold">
-                          {(gameState.buyIn / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                        </p>
-                      </div>
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-white/70 text-sm">Committed</p>
-                        <p className="text-yellow-300 font-bold">
-                          {(player1State.chipsCommitted / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                        </p>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <p className="text-white/70 text-sm">Remaining</p>
-                        <p className="text-green-400 font-bold">
-                          {((gameState.buyIn - player1State.chipsCommitted) / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                        </p>
-                      </div>
-                      {/* Progress Bar */}
-                      <div className="mt-3">
-                        <div className="w-full bg-gray-700 rounded-full h-2">
-                          <div 
-                            className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
-                            style={{ 
-                              width: `${(player1State.chipsCommitted / gameState.buyIn * 100).toFixed(1)}%` 
-                            }}
-                          />
-                        </div>
-                        <p className="text-white/50 text-xs mt-1 text-center">
-                          {(player1State.chipsCommitted / gameState.buyIn * 100).toFixed(1)}% used
-                        </p>
-                      </div>
-                    </div>
-                    {player1State.hand && 
-                     player1State.hand.some(c => c > 0) && 
-                     publicKey && 
-                     gameState.player1?.equals(publicKey) && (
-                      <div>
-                        <p className="text-white/70 text-sm mb-2">Your Hand</p>
-                        <div className="flex gap-2">
-                          {player1State.hand.map((card, idx) => 
-                            card > 0 ? (
-                              <CardComponent key={idx} cardValue={card} />
-                            ) : null
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {player1State.hand && 
-                     player1State.hand.some(c => c > 0) && 
-                     (!publicKey || !gameState.player1?.equals(publicKey)) && (
-                      <div>
-                        <p className="text-white/70 text-sm mb-2">Hand</p>
-                        <div className="flex gap-2">
-                          <div className="w-16 h-24 bg-gray-800 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xs">
-                            🃏
-                          </div>
-                          <div className="w-16 h-24 bg-gray-800 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xs">
-                            🃏
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Player 2 */}
-                  <div className="bg-white/10 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-semibold text-white">
-                        Player 2 {publicKey && gameState.player2?.equals(publicKey) && "(You)"}
-                      </h3>
-                      {player2State.hasFolded && (
-                        <span className="text-red-400 text-sm font-bold">FOLDED</span>
-                      )}
-                    </div>
-                    <div className="mb-3 bg-black/20 rounded p-3">
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-white/70 text-sm">Buy-in</p>
-                        <p className="text-white font-semibold">
-                          {(gameState.buyIn / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                        </p>
-                      </div>
-                      <div className="flex justify-between items-center mb-2">
-                        <p className="text-white/70 text-sm">Committed</p>
-                        <p className="text-yellow-300 font-bold">
-                          {(player2State.chipsCommitted / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                        </p>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <p className="text-white/70 text-sm">Remaining</p>
-                        <p className="text-green-400 font-bold">
-                          {((gameState.buyIn - player2State.chipsCommitted) / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                        </p>
-                      </div>
-                      {/* Progress Bar */}
-                      <div className="mt-3">
-                        <div className="w-full bg-gray-700 rounded-full h-2">
-                          <div 
-                            className="bg-yellow-400 h-2 rounded-full transition-all duration-300"
-                            style={{ 
-                              width: `${(player2State.chipsCommitted / gameState.buyIn * 100).toFixed(1)}%` 
-                            }}
-                          />
-                        </div>
-                        <p className="text-white/50 text-xs mt-1 text-center">
-                          {(player2State.chipsCommitted / gameState.buyIn * 100).toFixed(1)}% used
-                        </p>
-                      </div>
-                    </div>
-                    {player2State.hand && 
-                     player2State.hand.some(c => c > 0) && 
-                     publicKey && 
-                     gameState.player2?.equals(publicKey) && (
-                      <div>
-                        <p className="text-white/70 text-sm mb-2">Your Hand</p>
-                        <div className="flex gap-2">
-                          {player2State.hand.map((card, idx) => 
-                            card > 0 ? (
-                              <CardComponent key={idx} cardValue={card} />
-                            ) : null
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {player2State.hand && 
-                     player2State.hand.some(c => c > 0) && 
-                     (!publicKey || !gameState.player2?.equals(publicKey)) && (
-                      <div>
-                        <p className="text-white/70 text-sm mb-2">Hand</p>
-                        <div className="flex gap-2">
-                          <div className="w-16 h-24 bg-gray-800 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xs">
-                            🃏
-                          </div>
-                          <div className="w-16 h-24 bg-gray-800 border-2 border-gray-600 rounded-lg flex items-center justify-center text-white text-xs">
-                            🃏
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Player Actions */}
-              {gameState.phase !== GamePhase.Waiting &&
-                gameState.phase !== GamePhase.Finished &&
-                gameState.currentTurn &&
-                publicKey &&
-                gameState.currentTurn.equals(publicKey) && (
-                  <div className="space-y-4">
-                    <h3 className="text-xl font-semibold text-white text-center mb-4">
-                      What do you want to do?
-                    </h3>
-                    
-                    <div className="bg-white/10 rounded-lg p-4">
-                      <label className="block text-white mb-2 text-sm">Custom Bet Amount (SOL)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={customBetAmount || ""}
-                        onChange={(e) => setCustomBetAmount(Number(e.target.value))}
-                        placeholder="Enter bet amount"
-                        className="w-full bg-white/10 border border-white/20 rounded px-4 py-2 text-white mb-3"
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => handlePlayerAction(PlayerActionType.Fold)}
-                        disabled={loading}
-                        className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-lg disabled:opacity-50 text-lg"
-                      >
-                        ❌ Fold
-                      </button>
-                      
-                      <button
-                        onClick={() => handlePlayerAction(PlayerActionType.Check)}
-                        disabled={loading}
-                        className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-4 px-6 rounded-lg disabled:opacity-50 text-lg"
-                      >
-                        ✓ Check
-                      </button>
-                      
-                      <button
-                        onClick={() => handlePlayerAction(PlayerActionType.Call)}
-                        disabled={loading}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg disabled:opacity-50 text-lg"
-                      >
-                        📞 Call
-                      </button>
-                      
-                      <button
-                        onClick={() =>
-                          handlePlayerAction(
-                            PlayerActionType.Bet,
-                            customBetAmount > 0 ? customBetAmount : gameState.bigBlind / LAMPORTS_PER_SOL
-                          )
-                        }
-                        disabled={loading}
-                        className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg disabled:opacity-50 text-lg"
-                      >
-                        💰 Bet {customBetAmount > 0 
-                          ? customBetAmount.toFixed(4) 
-                          : (gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-
-              {/* Game Finished */}
-              {gameState.phase === GamePhase.Finished && gameState.winner && (
-                <div className="text-center bg-yellow-500/30 rounded-lg p-6 border-2 border-yellow-400">
-                  <p className="text-3xl font-bold text-yellow-300 mb-2">🏆 Game Finished!</p>
-                  <p className="text-xl text-white">
-                    Winner: {gameState.winner.toString().slice(0, 8)}...
-                    {publicKey && gameState.winner.equals(publicKey) && " (You won!)"}
-                  </p>
                 </div>
               )}
             </div>
-          )}
+
+            {/* Player 1 Position - Left */}
+            <div className={`absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 ${
+              isPlayer1Turn 
+                ? 'ring-4 ring-green-400 ring-opacity-90 animate-pulse' 
+                : ''
+            }`}>
+              {gameState.player1 ? (
+                <div className={`relative bg-black/70 rounded-lg p-1.5 min-w-[120px] sm:min-w-[140px] text-center backdrop-blur-sm border-2 ${
+                  isPlayer1Turn ? 'border-green-400 shadow-lg shadow-green-400/50' : 'border-white/20'
+                }`}>
+                  {/* Turn Indicator Badge */}
+                  {isPlayer1Turn && (
+                    <div className="absolute -top-2 -right-2 bg-green-500 rounded-full px-2 py-0.5 flex items-center gap-1 animate-bounce">
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                      <span className="text-white text-[9px] font-bold">TURN</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-center gap-1 mb-0.5">
+                    <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] sm:text-xs ${
+                      isPlayer1Turn 
+                        ? 'bg-gradient-to-br from-green-400 to-green-600 ring-2 ring-green-300' 
+                        : 'bg-gradient-to-br from-blue-400 to-blue-600'
+                    }`}>
+                      {getPlayerName(gameState.player1).charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className={`font-semibold text-[10px] sm:text-xs ${
+                        isPlayer1Turn ? 'text-green-300' : 'text-white'
+                      }`}>{getPlayerName(gameState.player1)}</p>
+                      {player1State?.hasFolded && (
+                        <p className="text-red-400 text-[9px] font-bold">FOLDED</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-yellow-500/20 rounded px-1 py-0.5 mb-0.5">
+                    <p className="text-yellow-300 font-bold text-[10px] sm:text-xs">
+                      {(player1State?.chipsCommitted || 0) / LAMPORTS_PER_SOL} SOL
+                    </p>
+                  </div>
+                  <p className="text-white/70 text-[9px] sm:text-[10px]">
+                    Chips: {((gameState.buyIn - (player1State?.chipsCommitted || 0)) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                  </p>
+                  {/* Player 1 Hand */}
+                  {player1State?.hand && player1State.hand.some(c => c > 0) && (
+                    <div className="flex gap-1 sm:gap-1.5 justify-center mt-1.5">
+                      {publicKey && gameState.player1?.equals(publicKey) ? (
+                        player1State.hand.map((card, idx) => card > 0 && (
+                          <div key={idx} className="transform hover:scale-110 transition-transform">
+                            <CardComponent cardValue={card} size="small" />
+                          </div>
+                        ))
+                      ) : (
+                        <>
+                          <div className="w-10 h-14 sm:w-12 sm:h-16 bg-gradient-to-br from-gray-700 to-gray-800 border-2 border-gray-500 rounded-lg flex items-center justify-center shadow-lg">
+                            <span className="text-gray-300 text-2xl sm:text-3xl font-bold">?</span>
+                          </div>
+                          <div className="w-10 h-14 sm:w-12 sm:h-16 bg-gradient-to-br from-gray-700 to-gray-800 border-2 border-gray-500 rounded-lg flex items-center justify-center shadow-lg">
+                            <span className="text-gray-300 text-2xl sm:text-3xl font-bold">?</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-black/30 rounded-lg p-2 min-w-[120px] text-center border border-dashed border-white/20">
+                  <p className="text-white/50 text-[10px]">Waiting for Player 1...</p>
+                </div>
+              )}
+            </div>
+
+            {/* Player 2 Position - Right */}
+            <div className={`absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 ${
+              isPlayer2Turn 
+                ? 'ring-4 ring-green-400 ring-opacity-90 animate-pulse' 
+                : ''
+            }`}>
+              {gameState.player2 ? (
+                <div className={`relative bg-black/70 rounded-lg p-1.5 min-w-[120px] sm:min-w-[140px] text-center backdrop-blur-sm border-2 ${
+                  isPlayer2Turn ? 'border-green-400 shadow-lg shadow-green-400/50' : 'border-white/20'
+                }`}>
+                  {/* Turn Indicator Badge */}
+                  {isPlayer2Turn && (
+                    <div className="absolute -top-2 -right-2 bg-green-500 rounded-full px-2 py-0.5 flex items-center gap-1 animate-bounce">
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                      <span className="text-white text-[9px] font-bold">TURN</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-center gap-1 mb-0.5">
+                    <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] sm:text-xs ${
+                      isPlayer2Turn 
+                        ? 'bg-gradient-to-br from-green-400 to-green-600 ring-2 ring-green-300' 
+                        : 'bg-gradient-to-br from-purple-400 to-purple-600'
+                    }`}>
+                      {getPlayerName(gameState.player2).charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className={`font-semibold text-[10px] sm:text-xs ${
+                        isPlayer2Turn ? 'text-green-300' : 'text-white'
+                      }`}>{getPlayerName(gameState.player2)}</p>
+                      {player2State?.hasFolded && (
+                        <p className="text-red-400 text-[9px] font-bold">FOLDED</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-yellow-500/20 rounded px-1 py-0.5 mb-0.5">
+                    <p className="text-yellow-300 font-bold text-[10px] sm:text-xs">
+                      {(player2State?.chipsCommitted || 0) / LAMPORTS_PER_SOL} SOL
+                    </p>
+                  </div>
+                  <p className="text-white/70 text-[9px] sm:text-[10px]">
+                    Chips: {((gameState.buyIn - (player2State?.chipsCommitted || 0)) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                  </p>
+                  {/* Player 2 Hand */}
+                  {player2State?.hand && player2State.hand.some(c => c > 0) && (
+                    <div className="flex gap-1 sm:gap-1.5 justify-center mt-1.5">
+                      {publicKey && gameState.player2?.equals(publicKey) ? (
+                        player2State.hand.map((card, idx) => card > 0 && (
+                          <div key={idx} className="transform hover:scale-110 transition-transform">
+                            <CardComponent cardValue={card} size="small" />
+                          </div>
+                        ))
+                      ) : (
+                        <>
+                          <div className="w-10 h-14 sm:w-12 sm:h-16 bg-gradient-to-br from-gray-700 to-gray-800 border-2 border-gray-500 rounded-lg flex items-center justify-center shadow-lg">
+                            <span className="text-gray-300 text-2xl sm:text-3xl font-bold">?</span>
+                          </div>
+                          <div className="w-10 h-14 sm:w-12 sm:h-16 bg-gradient-to-br from-gray-700 to-gray-800 border-2 border-gray-500 rounded-lg flex items-center justify-center shadow-lg">
+                            <span className="text-gray-300 text-2xl sm:text-3xl font-bold">?</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-black/30 rounded-lg p-2 min-w-[120px] text-center border border-dashed border-white/20">
+                  <p className="text-white/50 text-[10px]">Waiting for Player 2...</p>
+                </div>
+              )}
+            </div>
+
+            {/* Join Game Button Overlay */}
+            {gameState.phase === GamePhase.Waiting && 
+             gameState.player2 === null && 
+             publicKey && 
+             !gameState.player1?.equals(publicKey) && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-blue-500/90 rounded-lg p-6 text-center backdrop-blur-sm">
+                <h3 className="text-white font-bold text-lg mb-4">Join This Game</h3>
+                <button
+                  onClick={handleJoinGame}
+                  disabled={loading}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg disabled:opacity-50 text-lg shadow-lg"
+                >
+                  {loading ? "Joining..." : "Join Game"}
+                </button>
+              </div>
+            )}
+
+            {/* Deal Cards Button */}
+            {gameState.phase === GamePhase.PreFlop && 
+             (!player1State?.hand || player1State.hand.every(c => c === 0)) && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-purple-500/90 rounded-lg p-6 text-center backdrop-blur-sm">
+                <h3 className="text-white font-bold text-lg mb-4">🃏 Shuffle & Deal Cards</h3>
+                <button
+                  onClick={handleDealCards}
+                  disabled={loading}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg disabled:opacity-50 text-lg shadow-lg"
+                >
+                  {loading ? "Shuffling..." : "Deal Cards"}
+                </button>
+              </div>
+            )}
+
+            {/* Showdown Results */}
+            {gameState.phase === GamePhase.Showdown && player1State && player2State && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-yellow-500/95 rounded-lg p-6 text-center backdrop-blur-sm min-w-[400px]">
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">🎴 SHOWDOWN</h2>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-white/20 rounded p-3">
+                    <p className="text-white text-sm mb-2">Player 1</p>
+                    <div className="flex gap-1 justify-center">
+                      {player1State.hand.map((card, idx) => (
+                        <div key={idx} className="transform scale-75">
+                          <CardComponent cardValue={card} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-white/20 rounded p-3">
+                    <p className="text-white text-sm mb-2">Player 2</p>
+                    <div className="flex gap-1 justify-center">
+                      {player2State.hand.map((card, idx) => (
+                        <div key={idx} className="transform scale-75">
+                          <CardComponent cardValue={card} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {gameState.winner && (
+                  <div className="bg-green-500/80 rounded p-3">
+                    <p className="text-white font-bold text-lg">
+                      Winner: {gameState.winner.equals(gameState.player1!) ? "Player 1" : "Player 2"}
+                    </p>
+                    <p className="text-white text-sm mt-1">
+                      Pot: {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Game Finished */}
+            {gameState.phase === GamePhase.Finished && gameState.winner && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-green-500/95 rounded-lg p-6 text-center backdrop-blur-sm min-w-[400px]">
+                <h2 className="text-3xl font-bold text-white mb-4">🏆 GAME FINISHED</h2>
+                <p className="text-white text-xl mb-2">
+                  Winner: {gameState.winner.equals(gameState.player1!) ? "Player 1" : "Player 2"}
+                  {publicKey && gameState.winner.equals(publicKey) && " (You!)"}
+                </p>
+                <p className="text-white/80 text-sm">
+                  Pot Distributed: {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Bottom Action Bar - Only show when it's player's turn */}
+      {connected && isMyTurn && gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished && gameState.phase !== GamePhase.Showdown && (
+        <div className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-lg border-t border-green-500 p-2 z-50">
+          <div className="max-w-3xl mx-auto">
+            {/* Bet Amount Input */}
+            <div className="mb-2">
+              <label className="block text-white text-[10px] sm:text-xs mb-1 font-semibold">Bet Amount (SOL)</label>
+              <div className="flex gap-1 items-center flex-wrap">
+                <button
+                  onClick={() => setCustomBetAmount(Math.max(0, customBetAmount - 0.01))}
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-bold w-7 h-7 rounded text-xs"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={customBetAmount || ""}
+                  onChange={(e) => setCustomBetAmount(Number(e.target.value))}
+                  placeholder="0.00"
+                  className="flex-1 min-w-[100px] bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-center font-semibold text-xs"
+                />
+                <button
+                  onClick={() => setCustomBetAmount(customBetAmount + 0.01)}
+                  className="bg-gray-700 hover:bg-gray-600 text-white font-bold w-7 h-7 rounded text-xs"
+                >
+                  +
+                </button>
+                {/* Quick Bet Buttons - On same line */}
+                <button
+                  onClick={() => setCustomBetAmount((gameState.buyIn / LAMPORTS_PER_SOL) * 0.33)}
+                  className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
+                >
+                  33%
+                </button>
+                <button
+                  onClick={() => setCustomBetAmount((gameState.buyIn / LAMPORTS_PER_SOL) * 0.5)}
+                  className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
+                >
+                  50%
+                </button>
+                <button
+                  onClick={() => setCustomBetAmount((gameState.buyIn / LAMPORTS_PER_SOL) * 0.75)}
+                  className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
+                >
+                  75%
+                </button>
+                <button
+                  onClick={() => setCustomBetAmount(gameState.buyIn / LAMPORTS_PER_SOL)}
+                  className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
+                >
+                  Max
+                </button>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-4 gap-1">
+              <button
+                onClick={() => handlePlayerAction(PlayerActionType.Fold)}
+                disabled={loading}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
+              >
+                ❌ Fold
+              </button>
+              
+              <button
+                onClick={() => handlePlayerAction(PlayerActionType.Check)}
+                disabled={loading}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
+              >
+                ✓ Check
+              </button>
+              
+              <button
+                onClick={() => handlePlayerAction(PlayerActionType.Call)}
+                disabled={loading}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
+              >
+                📞 Call
+              </button>
+              
+              <button
+                onClick={() => handlePlayerAction(PlayerActionType.Bet, customBetAmount > 0 ? customBetAmount : gameState.bigBlind / LAMPORTS_PER_SOL)}
+                disabled={loading}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
+              >
+                💰 {customBetAmount > 0 
+                  ? `Bet ${customBetAmount.toFixed(4)}` 
+                  : `Bet ${(gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TEE Authorization - Top Right Corner */}
+      {connected && !authToken && (
+        <div className="fixed top-20 right-4 z-50 bg-blue-500/90 rounded-lg p-4 backdrop-blur-sm">
+          <button
+            onClick={handleAuthorize}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm"
+          >
+            {loading ? "Authorizing..." : "🔐 Authorize TEE"}
+          </button>
+        </div>
+      )}
     </main>
   );
 }
