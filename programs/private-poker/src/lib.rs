@@ -905,8 +905,6 @@ pub mod private_poker {
             }
         };
 
-        // Transfer winnings to winner from vault PDA
-        let vault_balance = ctx.accounts.game_vault.get_lamports();
         let game_id = game.game_id;
         
         // PDA seeds for the vault
@@ -917,7 +915,14 @@ pub mod private_poker {
         ];
         let signer_seeds = &[&seeds[..]];
 
-        // Transfer using CPI with PDA as signer
+        // Calculate unused buy-in for each player
+        let p1_unused = game.buy_in.saturating_sub(player1_state.chips_committed);
+        let p2_unused = game.buy_in.saturating_sub(player2_state.chips_committed);
+        
+        // Pot amount = total bets (chips_committed by both players)
+        let pot_amount = game.pot_amount;
+
+        // 1. Transfer pot to winner (only the amount that was bet)
         anchor_lang::system_program::transfer(
             CpiContext::new_with_signer(
                 ctx.accounts.system_program.to_account_info(),
@@ -927,13 +932,44 @@ pub mod private_poker {
                 },
                 signer_seeds,
             ),
-            vault_balance,
+            pot_amount,
         )?;
+
+        // 2. Return unused buy-in to player 1
+        if p1_unused > 0 {
+            anchor_lang::system_program::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    anchor_lang::system_program::Transfer {
+                        from: ctx.accounts.game_vault.to_account_info(),
+                        to: ctx.accounts.player1.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                p1_unused,
+            )?;
+        }
+
+        // 3. Return unused buy-in to player 2
+        if p2_unused > 0 {
+            anchor_lang::system_program::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    anchor_lang::system_program::Transfer {
+                        from: ctx.accounts.game_vault.to_account_info(),
+                        to: ctx.accounts.player2.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                p2_unused,
+            )?;
+        }
 
         game.phase = GamePhase::Finished;
         game.winner = Some(actual_winner);
 
-        msg!("Game {} resolved. Winner: {}", game.game_id, actual_winner);
+        msg!("Game {} resolved. Winner: {} received pot: {} SOL. Player1 unused: {} SOL returned. Player2 unused: {} SOL returned.", 
+             game.game_id, actual_winner, pot_amount, p1_unused, p2_unused);
 
         // Note: MagicBlock commit_and_undelegate_accounts removed due to CPI privilege issues
         // For MVP, we're skipping the commit/undelegate step
@@ -1291,6 +1327,14 @@ pub struct ResolveGame<'info> {
     /// CHECK: Winner account
     #[account(mut)]
     pub winner: UncheckedAccount<'info>,
+
+    /// CHECK: Player 1 account (to return unused buy-in)
+    #[account(mut)]
+    pub player1: UncheckedAccount<'info>,
+
+    /// CHECK: Player 2 account (to return unused buy-in)
+    #[account(mut)]
+    pub player2: UncheckedAccount<'info>,
 
     #[account(mut)]
     pub payer: Signer<'info>,

@@ -912,6 +912,14 @@
           "writable": true
         },
         {
+          "name": "player1",
+          "writable": true
+        },
+        {
+          "name": "player2",
+          "writable": true
+        },
+        {
           "name": "payer",
           "writable": true,
           "signer": true

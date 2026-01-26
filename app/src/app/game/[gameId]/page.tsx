@@ -242,6 +242,22 @@ export default function GamePage() {
   // Helper to check if it's player 2's turn
   const isPlayer2Turn = gameState?.currentTurn && gameState.player2 && gameState.currentTurn.equals(gameState.player2);
 
+  // Helper to get remaining buy-in for current player
+  const getRemainingBuyIn = () => {
+    if (!gameState || !publicKey) return 0;
+    const isPlayer1 = gameState.player1?.equals(publicKey);
+    const isPlayer2 = gameState.player2?.equals(publicKey);
+    
+    if (isPlayer1 && player1State) {
+      return (gameState.buyIn - player1State.chipsCommitted) / LAMPORTS_PER_SOL;
+    } else if (isPlayer2 && player2State) {
+      return (gameState.buyIn - player2State.chipsCommitted) / LAMPORTS_PER_SOL;
+    }
+    return 0;
+  };
+
+  const remainingBuyIn = getRemainingBuyIn();
+
   if (!gameState) {
     return (
       <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center">
@@ -353,9 +369,7 @@ export default function GamePage() {
                   <div className="bg-green-500/90 rounded-full px-3 py-1 inline-flex items-center gap-1.5 animate-pulse">
                     <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
                     <p className="text-white text-[9px] sm:text-[10px] font-bold">
-                      {isPlayer1Turn ? `${getPlayerName(gameState.player1)}'s Turn` : 
-                       isPlayer2Turn ? `${getPlayerName(gameState.player2)}'s Turn` : 
-                       "Waiting..."}
+                      {isMyTurn ? "Your Turn" : "Opponent Turn"}
                     </p>
                   </div>
                 </div>
@@ -577,15 +591,26 @@ export default function GamePage() {
 
             {/* Game Finished */}
             {gameState.phase === GamePhase.Finished && gameState.winner && (
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-green-500/95 rounded-lg p-6 text-center backdrop-blur-sm min-w-[400px]">
-                <h2 className="text-3xl font-bold text-white mb-4">🏆 GAME FINISHED</h2>
-                <p className="text-white text-xl mb-2">
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-gradient-to-br from-green-700 to-green-800 rounded-lg p-6 text-center backdrop-blur-sm min-w-[400px] shadow-2xl border-2 border-green-600">
+                <h2 className="text-3xl font-bold text-yellow-300 mb-4 drop-shadow-lg">🏆 GAME FINISHED</h2>
+                <p className="text-white text-xl mb-2 font-bold drop-shadow">
                   Winner: {gameState.winner.equals(gameState.player1!) ? "Player 1" : "Player 2"}
                   {publicKey && gameState.winner.equals(publicKey) && " (You!)"}
                 </p>
-                <p className="text-white/80 text-sm">
+                <p className="text-yellow-200 text-sm mb-2 font-semibold">
                   Pot Distributed: {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
                 </p>
+                {player1State && player2State && (
+                  <div className="mt-3 pt-3 border-t border-green-400/50">
+                    <p className="text-yellow-200 text-xs font-semibold mb-1">Unused Buy-in Returned:</p>
+                    <p className="text-white text-xs font-medium">
+                      Player 1: {((gameState.buyIn - player1State.chipsCommitted) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                    </p>
+                    <p className="text-white text-xs font-medium">
+                      Player 2: {((gameState.buyIn - player2State.chipsCommitted) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -623,25 +648,25 @@ export default function GamePage() {
                 </button>
                 {/* Quick Bet Buttons - On same line */}
                 <button
-                  onClick={() => setCustomBetAmount((gameState.buyIn / LAMPORTS_PER_SOL) * 0.33)}
+                  onClick={() => setCustomBetAmount(remainingBuyIn * 0.33)}
                   className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
                 >
                   33%
                 </button>
                 <button
-                  onClick={() => setCustomBetAmount((gameState.buyIn / LAMPORTS_PER_SOL) * 0.5)}
+                  onClick={() => setCustomBetAmount(remainingBuyIn * 0.5)}
                   className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
                 >
                   50%
                 </button>
                 <button
-                  onClick={() => setCustomBetAmount((gameState.buyIn / LAMPORTS_PER_SOL) * 0.75)}
+                  onClick={() => setCustomBetAmount(remainingBuyIn * 0.75)}
                   className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
                 >
                   75%
                 </button>
                 <button
-                  onClick={() => setCustomBetAmount(gameState.buyIn / LAMPORTS_PER_SOL)}
+                  onClick={() => setCustomBetAmount(remainingBuyIn)}
                   className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
                 >
                   Max

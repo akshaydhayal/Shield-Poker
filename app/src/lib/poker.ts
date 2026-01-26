@@ -453,6 +453,8 @@ export class PokerClient {
         player2State: player2StatePda,
         gameVault: vaultPda,
         winner: actualWinner,
+        player1: player1,
+        player2: player2,
         payer: this.wallet.publicKey,
         systemProgram: SystemProgram.programId,
       })
