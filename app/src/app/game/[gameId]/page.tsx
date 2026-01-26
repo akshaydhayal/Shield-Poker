@@ -256,7 +256,30 @@ export default function GamePage() {
     return 0;
   };
 
+  // Helper to calculate call amount (amount needed to call from current player's perspective)
+  const getCallAmount = () => {
+    if (!player1State || !player2State || !gameState?.currentTurn) return 0;
+    
+    const p1Chips = player1State.chipsCommitted || 0;
+    const p2Chips = player2State.chipsCommitted || 0;
+    
+    // Check whose turn it is
+    const isPlayer1Turn = gameState.currentTurn.equals(gameState.player1!);
+    const isPlayer2Turn = gameState.currentTurn.equals(gameState.player2!);
+    
+    if (isPlayer1Turn) {
+      // Player 1's turn: how much does Player 1 need to call to match Player 2?
+      return Math.max(0, p2Chips - p1Chips);
+    } else if (isPlayer2Turn) {
+      // Player 2's turn: how much does Player 2 need to call to match Player 1?
+      return Math.max(0, p1Chips - p2Chips);
+    }
+    
+    return 0;
+  };
+
   const remainingBuyIn = getRemainingBuyIn();
+  const callAmount = getCallAmount();
 
   if (!gameState) {
     return (
@@ -344,13 +367,13 @@ export default function GamePage() {
                 </div>
               )}
 
-              {/* Current Bet */}
+              {/* To Call */}
               {gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished && (
                 <div className="mt-0.5">
                   <div className="inline-flex items-center gap-1 bg-red-500/80 rounded-full px-2 py-0.5">
-                    <span className="text-white text-[9px] sm:text-[10px] font-semibold">Current Bet:</span>
+                    <span className="text-white text-[9px] sm:text-[10px] font-semibold">To Call:</span>
                     <span className="text-white font-bold text-[9px] sm:text-[10px]">
-                      {((gameState.bigBlind || 0) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                      {(callAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
                     </span>
                   </div>
                 </div>
@@ -686,18 +709,25 @@ export default function GamePage() {
               
               <button
                 onClick={() => handlePlayerAction(PlayerActionType.Check)}
-                disabled={loading}
-                className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
+                disabled={loading || callAmount > 0}
+                title={callAmount > 0 ? "Cannot check - there's a bet to call" : "Check (pass without betting)"}
+                className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
               >
                 ✓ Check
               </button>
               
               <button
                 onClick={() => handlePlayerAction(PlayerActionType.Call)}
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
+                disabled={loading || callAmount === 0}
+                title={callAmount === 0 ? "Nothing to call - use Check instead" : `Call ${(callAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL`}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform relative group"
               >
                 📞 Call
+                {callAmount === 0 && (
+                  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-yellow-900 text-[8px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    Use Check instead
+                  </span>
+                )}
               </button>
               
               <button

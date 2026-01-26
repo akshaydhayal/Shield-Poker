@@ -288,7 +288,7 @@ pub mod private_poker {
         game.phase = GamePhase::Waiting;
         game.board_cards = [0u8; 5];
         game.small_blind = buy_in / 20; // 5% of buy-in
-        game.big_blind = buy_in / 10; // 10% of buy-in
+        game.big_blind = buy_in / 20; // 5% of buy-in (equal to small blind)
         game.deck_seed = [0u8; 32];
         game.last_action_ts = Clock::get()?.unix_timestamp;
 
