@@ -295,57 +295,17 @@ export default function GamePage() {
     try {
       setLoading(true);
       
-      // Check if deck seed is set, if not use a random one
-      let seedToUse = gameState.deckSeed;
-      if (!seedToUse || seedToUse.every((b: number) => b === 0)) {
-        // Generate a random seed if not set
-        seedToUse = Array.from(crypto.getRandomValues(new Uint8Array(32)));
-        console.log("Deck seed was not set, using random seed:", seedToUse);
-        
-        // Set the seed first
-        const seedTx = await pokerClient.setDeckSeed(gameId, seedToUse);
-        console.log("Random seed set:", seedTx);
-        
-        // Wait a bit for the transaction to confirm
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Refresh game state
-        await fetchGameState();
-      }
+      // Cards are shuffled on-chain using a client-generated random seed
+      // The seed is generated using crypto.getRandomValues() for cryptographically secure randomness
+      console.log("Generating random seed and requesting card shuffle...");
       
-      // Generate unique random cards based on deck seed
-      const { player1Hand, player2Hand } = generateUniqueCards(seedToUse);
+      const tx = await pokerClient.shuffleAndDealCards(gameId);
+      console.log("Cards shuffled and dealt:", tx);
       
-      // Double-check uniqueness before sending
-      const allCards = [...player1Hand, ...player2Hand];
-      const uniqueCards = new Set(allCards);
+      // Wait for transaction to confirm
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      if (uniqueCards.size !== allCards.length) {
-        console.error("Duplicate cards detected:", {
-          player1Hand,
-          player2Hand,
-          allCards,
-          duplicates: allCards.filter((card, index) => allCards.indexOf(card) !== index)
-        });
-        throw new Error("Failed to generate unique cards. Please try again.");
-      }
-      
-      // Validate card values are in valid range
-      for (const card of allCards) {
-        if (card < 0 || card > 51 || !Number.isInteger(card)) {
-          throw new Error(`Invalid card value: ${card}. Cards must be integers between 0 and 51.`);
-        }
-      }
-      
-      console.log("Dealing cards:", {
-        player1Hand,
-        player2Hand,
-        allCards,
-        unique: true
-      });
-      
-      const tx = await pokerClient.dealCards(gameId, player1Hand, player2Hand);
-      console.log("Cards dealt successfully:", tx);
+      // Refresh game state to see the dealt cards
       await fetchGameState();
       setError(null);
     } catch (err: any) {
@@ -368,6 +328,12 @@ export default function GamePage() {
           pokerClient.getPlayerState(gameId, state.player1),
           pokerClient.getPlayerState(gameId, state.player2),
         ]);
+        console.log("Fetched player states:", {
+          player1: state.player1.toBase58(),
+          player2: state.player2.toBase58(),
+          p1State: p1State ? { hand: p1State.hand, player: p1State.player.toBase58() } : null,
+          p2State: p2State ? { hand: p2State.hand, player: p2State.player.toBase58() } : null,
+        });
         setPlayer1State(p1State);
         setPlayer2State(p2State);
       } else {
@@ -560,20 +526,19 @@ export default function GamePage() {
 
               {/* Deal Cards */}
               {gameState.phase === GamePhase.PreFlop && 
-               gameState.deckSeed && 
-               !gameState.deckSeed.every((b: number) => b === 0) &&
                (!player1State?.hand || player1State.hand.every(c => c === 0)) && (
                 <div className="bg-purple-500/20 rounded-lg p-4 border border-purple-400">
-                  <h3 className="text-lg font-semibold text-white mb-3">🃏 Deal Cards</h3>
+                  <h3 className="text-lg font-semibold text-white mb-3">🃏 Shuffle & Deal Cards</h3>
                   <p className="text-white/80 text-sm mb-4">
-                    Cards will be automatically generated from the deck seed to ensure uniqueness and randomness.
+                    Cards will be shuffled on-chain using a client-generated random seed. 
+                    The seed is generated using cryptographically secure randomness (crypto.getRandomValues).
                   </p>
                   <button
                     onClick={handleDealCards}
                     disabled={loading}
                     className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded disabled:opacity-50"
                   >
-                    {loading ? "Dealing Cards..." : "Deal Random Cards"}
+                    {loading ? "Shuffling & Dealing..." : "Shuffle & Deal Cards On-Chain"}
                   </button>
                 </div>
               )}

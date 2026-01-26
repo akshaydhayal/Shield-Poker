@@ -1,5 +1,5 @@
 {
-  "address": "6FgbJnFve4Kar7xMwjxeQNMuVdALTFm7WVU6EqJdPBwR",
+  "address": "8aX9U5f1GMVXcwTy2z8ycTZc4fXxAMZyZbGkuC8Gjm2E",
   "metadata": {
     "name": "private_poker",
     "version": "0.1.0",
@@ -186,141 +186,6 @@
       ]
     },
     {
-      "name": "deal_cards",
-      "docs": [
-        "Deal cards to players (cards are encrypted via PER)"
-      ],
-      "discriminator": [
-        38,
-        218,
-        247,
-        103,
-        218,
-        237,
-        24,
-        65
-      ],
-      "accounts": [
-        {
-          "name": "game",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "game_id"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player1_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  115,
-                  116,
-                  97,
-                  116,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "game_id"
-              },
-              {
-                "kind": "account",
-                "path": "game.player1",
-                "account": "Game"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player2_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  115,
-                  116,
-                  97,
-                  116,
-                  101
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "game_id"
-              },
-              {
-                "kind": "account",
-                "path": "game.player2",
-                "account": "Game"
-              }
-            ]
-          }
-        },
-        {
-          "name": "payer",
-          "signer": true
-        }
-      ],
-      "args": [
-        {
-          "name": "_game_id",
-          "type": "u64"
-        },
-        {
-          "name": "player1_hand",
-          "type": {
-            "array": [
-              "u8",
-              2
-            ]
-          }
-        },
-        {
-          "name": "player2_hand",
-          "type": {
-            "array": [
-              "u8",
-              2
-            ]
-          }
-        }
-      ]
-    },
-    {
       "name": "delegate_pda",
       "docs": [
         "Delegate account to PER"
@@ -360,38 +225,38 @@
             "program": {
               "kind": "const",
               "value": [
-                78,
-                13,
-                85,
-                11,
-                47,
-                183,
-                221,
-                242,
-                107,
-                250,
-                70,
-                29,
-                170,
-                9,
-                121,
+                112,
+                152,
+                15,
+                180,
+                219,
+                12,
+                83,
+                103,
+                162,
+                88,
+                157,
                 252,
+                179,
+                72,
+                240,
+                133,
+                242,
+                225,
+                198,
                 145,
-                187,
-                35,
-                195,
-                247,
-                28,
-                177,
-                63,
-                53,
-                208,
-                163,
-                155,
-                94,
-                167,
-                164,
-                140
+                150,
+                125,
+                64,
+                98,
+                20,
+                23,
+                152,
+                101,
+                127,
+                173,
+                40,
+                23
               ]
             }
           }
@@ -481,7 +346,7 @@
         },
         {
           "name": "owner_program",
-          "address": "6FgbJnFve4Kar7xMwjxeQNMuVdALTFm7WVU6EqJdPBwR"
+          "address": "8aX9U5f1GMVXcwTy2z8ycTZc4fXxAMZyZbGkuC8Gjm2E"
         },
         {
           "name": "delegation_program",
@@ -1130,6 +995,129 @@
         },
         {
           "name": "seed",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "shuffle_and_deal_cards",
+      "docs": [
+        "Shuffle and deal cards using client-generated random seed",
+        "The seed is generated client-side using crypto.getRandomValues() for randomness"
+      ],
+      "discriminator": [
+        233,
+        130,
+        83,
+        95,
+        81,
+        243,
+        25,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "game_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player1_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "game_id"
+              },
+              {
+                "kind": "account",
+                "path": "game.player1",
+                "account": "Game"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player2_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "game_id"
+              },
+              {
+                "kind": "account",
+                "path": "game.player2",
+                "account": "Game"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "game_id",
+          "type": "u64"
+        },
+        {
+          "name": "random_seed",
           "type": {
             "array": [
               "u8",

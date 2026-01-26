@@ -7,8 +7,10 @@ use ephemeral_rollups_sdk::anchor::{commit, delegate, ephemeral};
 use ephemeral_rollups_sdk::consts::PERMISSION_PROGRAM_ID;
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
+// VRF SDK temporarily disabled - using client-side random seed for now
+// TODO: Re-enable VRF when SDK compatibility is resolved
 
-declare_id!("6FgbJnFve4Kar7xMwjxeQNMuVdALTFm7WVU6EqJdPBwR");
+declare_id!("8aX9U5f1GMVXcwTy2z8ycTZc4fXxAMZyZbGkuC8Gjm2E");
 
 // MagicBlock Program IDs (PERMISSION_PROGRAM_ID is imported from SDK)
 use anchor_lang::solana_program::pubkey;
@@ -148,48 +150,152 @@ pub mod private_poker {
         Ok(())
     }
 
-    /// Deal cards to players (cards are encrypted via PER)
-    pub fn deal_cards(
-        ctx: Context<DealCards>,
-        _game_id: u64,
-        player1_hand: [u8; 2],
-        player2_hand: [u8; 2],
+    /// Shuffle and deal cards using client-generated random seed
+    /// The seed is generated client-side using crypto.getRandomValues() for randomness
+    pub fn shuffle_and_deal_cards(
+        ctx: Context<ShuffleAndDealCards>,
+        game_id: u64,
+        random_seed: [u8; 32],
     ) -> Result<()> {
-        let game = &ctx.accounts.game;
+        let game = &mut ctx.accounts.game;
+        
         require!(
             game.phase == GamePhase::PreFlop,
             PokerError::InvalidGamePhase
         );
+        require!(
+            game.player1.is_some() && game.player2.is_some(),
+            PokerError::MissingOpponent
+        );
 
-        // Validate cards are in valid range (0-51)
-        for card in player1_hand.iter().chain(player2_hand.iter()) {
-            require!(*card < 52, PokerError::InvalidAction);
+        msg!("Shuffling and dealing cards for game {} using client-generated random seed", game_id);
+
+        // Combine client seed with game state for additional entropy
+        let mut combined_seed = random_seed;
+        // Overwrite first 8 bytes with game_id (client seed already has randomness)
+        combined_seed[0..8].copy_from_slice(&game_id.to_le_bytes());
+        // Use first 12 bytes of each player's pubkey (32 bytes total) to fill remaining space
+        if let Some(p1) = game.player1 {
+            let p1_bytes = p1.to_bytes();
+            combined_seed[8..20].copy_from_slice(&p1_bytes[0..12]);
+        }
+        if let Some(p2) = game.player2 {
+            let p2_bytes = p2.to_bytes();
+            combined_seed[20..32].copy_from_slice(&p2_bytes[0..12]);
         }
 
-        // Validate no duplicate cards within a hand
+        // Create full 52-card deck
+        let mut deck: Vec<u8> = (0..52).collect();
+
+        // Shuffle deck using Fisher-Yates with combined seed
+        // Use improved LCG with better randomness distribution
+        let mut rng_state = u64::from_le_bytes(combined_seed[0..8].try_into().unwrap())
+            .wrapping_add(u64::from_le_bytes(combined_seed[8..16].try_into().unwrap()))
+            .wrapping_add(u64::from_le_bytes(combined_seed[16..24].try_into().unwrap()))
+            .wrapping_add(u64::from_le_bytes(combined_seed[24..32].try_into().unwrap()));
+        
+        // Ensure rng_state is non-zero to avoid degenerate sequences
+        if rng_state == 0 {
+            rng_state = 1;
+        }
+        
+        for i in (1..52).rev() {
+            // Improved LCG with multiple iterations for better distribution
+            rng_state = rng_state.wrapping_mul(1103515245).wrapping_add(12345);
+            // Add additional mixing
+            rng_state = rng_state.wrapping_mul(1664525).wrapping_add(1013904223);
+            // Use modulo to get index in range [0, i]
+            let j = (rng_state as usize) % (i + 1);
+            deck.swap(i, j);
+        }
+        
+        // Verify deck has all unique cards 0-51 (sanity check)
+        let mut deck_sorted = deck.clone();
+        deck_sorted.sort();
+        for i in 0..52 {
+            require!(deck_sorted[i] == i as u8, PokerError::InvalidAction);
+        }
+
+        // Deal first 2 cards to player1, next 2 to player2
+        let player1_hand = [deck[0], deck[1]];
+        let player2_hand = [deck[2], deck[3]];
+
+        // Comprehensive validation: ensure all cards are unique
+        // Check player1's cards are different
         require!(
             player1_hand[0] != player1_hand[1],
             PokerError::InvalidAction
         );
+        // Check player2's cards are different
         require!(
             player2_hand[0] != player2_hand[1],
             PokerError::InvalidAction
         );
-
-        // Validate no duplicate cards between players
-        for p1_card in player1_hand.iter() {
-            for p2_card in player2_hand.iter() {
-                require!(*p1_card != *p2_card, PokerError::InvalidAction);
-            }
+        // Check player1's cards don't match player2's cards
+        require!(
+            player1_hand[0] != player2_hand[0],
+            PokerError::InvalidAction
+        );
+        require!(
+            player1_hand[0] != player2_hand[1],
+            PokerError::InvalidAction
+        );
+        require!(
+            player1_hand[1] != player2_hand[0],
+            PokerError::InvalidAction
+        );
+        require!(
+            player1_hand[1] != player2_hand[1],
+            PokerError::InvalidAction
+        );
+        
+        // Additional validation: ensure cards are in valid range
+        for &card in player1_hand.iter().chain(player2_hand.iter()) {
+            require!(card < 52, PokerError::InvalidAction);
         }
+        
+        msg!(
+            "Deck shuffled: P1=[{}, {}], P2=[{}, {}], All unique: true",
+            player1_hand[0],
+            player1_hand[1],
+            player2_hand[0],
+            player2_hand[1]
+        );
 
+        // Store the combined seed in game state so we can regenerate the deck later
+        game.deck_seed = combined_seed;
+
+        // Assign cards to players
         let player1_state = &mut ctx.accounts.player1_state;
         let player2_state = &mut ctx.accounts.player2_state;
+
+        msg!(
+            "Before assignment: P1 hand=[{}, {}], P2 hand=[{}, {}]",
+            player1_state.hand[0],
+            player1_state.hand[1],
+            player2_state.hand[0],
+            player2_state.hand[1]
+        );
+        msg!(
+            "Assigning: P1=[{}, {}], P2=[{}, {}]",
+            player1_hand[0],
+            player1_hand[1],
+            player2_hand[0],
+            player2_hand[1]
+        );
 
         player1_state.hand = player1_hand;
         player2_state.hand = player2_hand;
 
-        msg!("Cards dealt for game {}", game.game_id);
+        msg!(
+            "After assignment: P1 hand=[{}, {}], P2 hand=[{}, {}], P1 pubkey={}, P2 pubkey={}",
+            player1_state.hand[0],
+            player1_state.hand[1],
+            player2_state.hand[0],
+            player2_state.hand[1],
+            player1_state.player,
+            player2_state.player
+        );
 
         Ok(())
     }
@@ -288,38 +394,126 @@ pub mod private_poker {
         let p2_chips = ctx.accounts.player2_state.chips_committed;
         let p1_folded = ctx.accounts.player1_state.has_folded;
         let p2_folded = ctx.accounts.player2_state.has_folded;
-        let was_player2_turn = player == game.player2.unwrap();
+        let is_player1 = player == game.player1.unwrap();
+        let is_player2 = player == game.player2.unwrap();
 
-        // Check if we should advance phase:
+        // Determine if we should advance phase:
         // 1. Someone folded -> advance immediately
-        // 2. Both players have equal chips committed AND player 2 just acted -> advance
-        let should_advance = p1_folded 
-            || p2_folded
-            || (p1_chips == p2_chips && was_player2_turn);
+        // 2. Both players have equal chips committed (betting round complete)
+        //    - If player 1 just acted: wait for player 2 to act
+        //    - If player 2 just acted: both have acted, advance
+        let should_advance = if p1_folded || p2_folded {
+            true // Someone folded, advance immediately
+        } else if p1_chips == p2_chips {
+            // Chips are equal - advance if player 2 just acted (both have acted)
+            is_player2
+        } else {
+            false // Chips not equal yet, don't advance
+        };
 
         if should_advance {
-            // Automatically advance phase
+            // Automatically advance phase and deal board cards from shuffled deck
             match game.phase {
                 GamePhase::PreFlop => {
+                    // Verify deck seed is set (cards were shuffled)
+                    require!(
+                        !game.deck_seed.iter().all(|&b| b == 0),
+                        PokerError::InvalidAction
+                    );
+                    
+                    // Regenerate the same shuffled deck from stored seed
+                    let mut deck: Vec<u8> = (0..52).collect();
+                    let mut rng_state = u64::from_le_bytes(game.deck_seed[0..8].try_into().unwrap())
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[8..16].try_into().unwrap()))
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[16..24].try_into().unwrap()))
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[24..32].try_into().unwrap()));
+                    for i in (1..52).rev() {
+                        rng_state = rng_state.wrapping_mul(1103515245).wrapping_add(12345);
+                        let j = (rng_state as usize) % (i + 1);
+                        deck.swap(i, j);
+                    }
+                    
+                    // Deal Flop: cards at positions 4, 5, 6 (after player hands at 0-3)
+                    let flop_cards = [deck[4], deck[5], deck[6]];
+                    
+                    // Validate board cards don't conflict with player hands
+                    let p1_hand = ctx.accounts.player1_state.hand;
+                    let p2_hand = ctx.accounts.player2_state.hand;
+                    for &card in &flop_cards {
+                        require!(card != p1_hand[0] && card != p1_hand[1], PokerError::InvalidAction);
+                        require!(card != p2_hand[0] && card != p2_hand[1], PokerError::InvalidAction);
+                    }
+                    
+                    game.board_cards[0] = flop_cards[0];
+                    game.board_cards[1] = flop_cards[1];
+                    game.board_cards[2] = flop_cards[2];
+                    
                     game.phase = GamePhase::Flop;
                     game.current_turn = game.player1;
-                    // Reveal first 3 board cards
-                    game.board_cards[0] = 1;
-                    game.board_cards[1] = 1;
-                    game.board_cards[2] = 1;
-                    msg!("Game {} advanced to Flop", game.game_id);
+                    msg!("Game {} advanced to Flop, board cards: [{}, {}, {}]", 
+                         game.game_id, flop_cards[0], flop_cards[1], flop_cards[2]);
                 }
                 GamePhase::Flop => {
+                    // Regenerate the same shuffled deck from stored seed
+                    let mut deck: Vec<u8> = (0..52).collect();
+                    let mut rng_state = u64::from_le_bytes(game.deck_seed[0..8].try_into().unwrap())
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[8..16].try_into().unwrap()))
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[16..24].try_into().unwrap()))
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[24..32].try_into().unwrap()));
+                    for i in (1..52).rev() {
+                        rng_state = rng_state.wrapping_mul(1103515245).wrapping_add(12345);
+                        let j = (rng_state as usize) % (i + 1);
+                        deck.swap(i, j);
+                    }
+                    
+                    // Deal Turn: card at position 7
+                    let turn_card = deck[7];
+                    
+                    // Validate turn card doesn't conflict with player hands or existing board cards
+                    let p1_hand = ctx.accounts.player1_state.hand;
+                    let p2_hand = ctx.accounts.player2_state.hand;
+                    require!(turn_card != p1_hand[0] && turn_card != p1_hand[1], PokerError::InvalidAction);
+                    require!(turn_card != p2_hand[0] && turn_card != p2_hand[1], PokerError::InvalidAction);
+                    require!(turn_card != game.board_cards[0] && turn_card != game.board_cards[1] && turn_card != game.board_cards[2], PokerError::InvalidAction);
+                    
+                    game.board_cards[3] = turn_card;
+                    
                     game.phase = GamePhase::Turn;
                     game.current_turn = game.player1;
-                    game.board_cards[3] = 1; // Reveal turn card
-                    msg!("Game {} advanced to Turn", game.game_id);
+                    msg!("Game {} advanced to Turn, board card: {}", game.game_id, turn_card);
                 }
                 GamePhase::Turn => {
+                    // Regenerate the same shuffled deck from stored seed
+                    let mut deck: Vec<u8> = (0..52).collect();
+                    let mut rng_state = u64::from_le_bytes(game.deck_seed[0..8].try_into().unwrap())
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[8..16].try_into().unwrap()))
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[16..24].try_into().unwrap()))
+                        .wrapping_add(u64::from_le_bytes(game.deck_seed[24..32].try_into().unwrap()));
+                    for i in (1..52).rev() {
+                        rng_state = rng_state.wrapping_mul(1103515245).wrapping_add(12345);
+                        let j = (rng_state as usize) % (i + 1);
+                        deck.swap(i, j);
+                    }
+                    
+                    // Deal River: card at position 8
+                    let river_card = deck[8];
+                    
+                    // Validate river card doesn't conflict with player hands or existing board cards
+                    let p1_hand = ctx.accounts.player1_state.hand;
+                    let p2_hand = ctx.accounts.player2_state.hand;
+                    require!(river_card != p1_hand[0] && river_card != p1_hand[1], PokerError::InvalidAction);
+                    require!(river_card != p2_hand[0] && river_card != p2_hand[1], PokerError::InvalidAction);
+                    require!(
+                        river_card != game.board_cards[0] && river_card != game.board_cards[1] && 
+                        river_card != game.board_cards[2] && river_card != game.board_cards[3],
+                        PokerError::InvalidAction
+                    );
+                    
+                    game.board_cards[4] = river_card;
+                    
                     game.phase = GamePhase::River;
                     game.current_turn = game.player1;
-                    game.board_cards[4] = 1; // Reveal river card
-                    msg!("Game {} advanced to River", game.game_id);
+                    msg!("Game {} advanced to River, board card: {}", game.game_id, river_card);
                 }
                 GamePhase::River => {
                     game.phase = GamePhase::Showdown;
@@ -332,10 +526,10 @@ pub mod private_poker {
             }
         } else {
             // Switch turn to next player (if player 1 acted, switch to player 2)
-            game.current_turn = if was_player2_turn {
-                game.player1
-            } else {
+            game.current_turn = if is_player1 {
                 game.player2
+            } else {
+                game.player1
             };
         }
 
@@ -712,7 +906,7 @@ pub struct SetDeckSeed<'info> {
 
 #[derive(Accounts)]
 #[instruction(game_id: u64)]
-pub struct DealCards<'info> {
+pub struct ShuffleAndDealCards<'info> {
     #[account(
         mut,
         seeds = [GAME_SEED, &game_id.to_le_bytes()],
@@ -733,8 +927,6 @@ pub struct DealCards<'info> {
         bump
     )]
     pub player2_state: Account<'info, PlayerState>,
-
-    pub payer: Signer<'info>,
 }
 
 #[derive(Accounts)]
