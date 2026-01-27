@@ -646,12 +646,12 @@ pub mod private_poker {
         let is_player2 = player == game.player2.unwrap();
 
         // Determine if we should advance phase:
-        // 1. Someone folded -> advance immediately
+        // 1. Someone folded -> set winner immediately and go to Showdown
         // 2. Both players have equal chips committed (betting round complete)
         //    - If player 1 just acted: wait for player 2 to act
         //    - If player 2 just acted: both have acted, advance
         let should_advance = if p1_folded || p2_folded {
-            true // Someone folded, advance immediately
+            true // Someone folded, set winner immediately
         } else if p1_chips == p2_chips {
             // Chips are equal - advance if player 2 just acted (both have acted)
             is_player2
@@ -660,8 +660,24 @@ pub mod private_poker {
         };
 
         if should_advance {
-            // Automatically advance phase and deal board cards from shuffled deck
-            match game.phase {
+            // If someone folded, set winner immediately and skip to Showdown
+            if p1_folded || p2_folded {
+                // Set winner to the non-folding player
+                if p1_folded {
+                    game.winner = game.player2;
+                    msg!("Player 1 folded - Player 2 wins immediately");
+                } else {
+                    game.winner = game.player1;
+                    msg!("Player 2 folded - Player 1 wins immediately");
+                }
+                
+                // Go directly to Showdown (which will auto-resolve to Finished)
+                game.phase = GamePhase::Showdown;
+                game.current_turn = None;
+                msg!("Game {} advanced to Showdown (fold)", game.game_id);
+            } else {
+                // Normal phase advancement - both players still in, deal board cards
+                match game.phase {
                 GamePhase::PreFlop => {
                     // Verify deck seed is set (cards were shuffled)
                     require!(
@@ -795,14 +811,36 @@ pub mod private_poker {
                 _ => {
                     // Don't advance if already in Showdown or Finished
                 }
+                }
             }
         } else {
-            // Switch turn to next player (if player 1 acted, switch to player 2)
-            game.current_turn = if is_player1 {
-                game.player2
+            // Only switch turn if the other player needs to act
+            // If current player has more chips, they've already acted - other player must respond
+            if is_player1 {
+                // Player 1 just acted
+                if p1_chips > p2_chips {
+                    // Player 1 bet more - Player 2 must act
+                    game.current_turn = game.player2;
+                } else if p2_chips > p1_chips {
+                    // Player 2 has more - Player 1 must act (shouldn't happen if player 1 just acted)
+                    game.current_turn = game.player1;
+                } else {
+                    // Chips equal - switch to other player for next round
+                    game.current_turn = game.player2;
+                }
             } else {
-                game.player1
-            };
+                // Player 2 just acted
+                if p2_chips > p1_chips {
+                    // Player 2 bet more - Player 1 must act
+                    game.current_turn = game.player1;
+                } else if p1_chips > p2_chips {
+                    // Player 1 has more - Player 2 must act (shouldn't happen if player 2 just acted)
+                    game.current_turn = game.player2;
+                } else {
+                    // Chips equal - switch to other player for next round
+                    game.current_turn = game.player1;
+                }
+            }
         }
 
         Ok(())

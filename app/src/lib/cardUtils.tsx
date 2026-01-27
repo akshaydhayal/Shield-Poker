@@ -40,7 +40,7 @@ export function CardComponent({ cardValue, size = 'normal' }: { cardValue: numbe
   const sizeClasses = {
     small: {
       container: 'w-10 h-14 sm:w-12 sm:h-16',
-      rankTop: 'text-xs sm:text-sm',
+      rankTop: 'text-base sm:text-lg font-black',
       suitTop: 'text-[10px] sm:text-xs',
       suitCenter: 'text-xl sm:text-2xl',
       rankBottom: 'text-xs sm:text-sm',
@@ -49,7 +49,7 @@ export function CardComponent({ cardValue, size = 'normal' }: { cardValue: numbe
     },
     normal: {
       container: 'w-14 h-20 sm:w-16 sm:h-24 md:w-20 md:h-28',
-      rankTop: 'text-sm sm:text-base md:text-lg',
+      rankTop: 'text-lg sm:text-xl md:text-2xl font-black',
       suitTop: 'text-xs sm:text-sm md:text-base',
       suitCenter: 'text-3xl sm:text-4xl md:text-5xl',
       rankBottom: 'text-sm sm:text-base md:text-lg',
@@ -72,16 +72,22 @@ export function CardComponent({ cardValue, size = 'normal' }: { cardValue: numbe
   const textColor = isRed ? '#dc2626' : '#000000'; // red-600 or black
   
   return (
-    <div className={`${sizes.container} bg-white border-2 ${isRed ? 'border-red-500' : 'border-gray-800'} rounded-lg flex flex-col items-center justify-center shadow-xl hover:shadow-2xl transition-shadow relative overflow-hidden`}
+    <div className={`${sizes.container} bg-white border-2 ${isRed ? 'border-red-500' : 'border-gray-800'} rounded-lg shadow-xl hover:shadow-2xl transition-shadow relative overflow-hidden`}
          style={{
            boxShadow: '0 4px 8px rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(0, 0, 0, 0.2)'
          }}>
       {/* Top left corner - Rank only */}
-      <div className="absolute top-1 left-1 z-10">
-        <div className={`${sizes.rankTop} font-bold leading-tight`} style={{ color: textColor }}>{card.rank}</div>
+      <div className="absolute top-1 left-1.5 z-30">
+        <div className={`${sizes.rankTop} leading-tight`} style={{ 
+          color: textColor, 
+          fontWeight: 900,
+          lineHeight: '1.1'
+        }}>{card.rank}</div>
       </div>
-      {/* Center large suit */}
-      <div className={`${sizes.suitCenter} font-bold z-10`} style={{ color: textColor }}>{card.suitSymbol}</div>
+      {/* Center large suit - positioned in true center */}
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+        <div className={`${sizes.suitCenter} font-bold`} style={{ color: textColor }}>{card.suitSymbol}</div>
+      </div>
     </div>
   );
 }

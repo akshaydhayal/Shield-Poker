@@ -28,6 +28,7 @@ export default function GamePage() {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [deckSeedInput, setDeckSeedInput] = useState<string>("");
   const [customBetAmount, setCustomBetAmount] = useState<number>(0);
+  const [betAmountInput, setBetAmountInput] = useState<string>("");
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -278,8 +279,21 @@ export default function GamePage() {
     return 0;
   };
 
+  // Helper to check if chips are equal (required for Check)
+  const areChipsEqual = () => {
+    if (!player1State || !player2State) return false;
+    return (player1State.chipsCommitted || 0) === (player2State.chipsCommitted || 0);
+  };
+
   const remainingBuyIn = getRemainingBuyIn();
   const callAmount = getCallAmount();
+  const chipsEqual = areChipsEqual();
+  
+  // Calculate minimum bet amount (big blind)
+  const minBetAmount = gameState ? (gameState.bigBlind || 0) / LAMPORTS_PER_SOL : 0;
+  
+  // Check if bet amount is valid (>= minimum bet)
+  const isBetAmountValid = customBetAmount >= minBetAmount;
 
   if (!gameState) {
     return (
@@ -649,47 +663,97 @@ export default function GamePage() {
               <label className="block text-white text-[10px] sm:text-xs mb-1 font-semibold">Bet Amount (SOL)</label>
               <div className="flex gap-1 items-center flex-wrap">
                 <button
-                  onClick={() => setCustomBetAmount(Math.max(0, customBetAmount - 0.01))}
+                  onClick={() => {
+                    const newValue = Math.max(0, customBetAmount - 0.01);
+                    setCustomBetAmount(newValue);
+                    setBetAmountInput(newValue > 0 ? newValue.toFixed(4) : "");
+                  }}
                   className="bg-gray-700 hover:bg-gray-600 text-white font-bold w-7 h-7 rounded text-xs"
                 >
                   −
                 </button>
                 <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={customBetAmount || ""}
-                  onChange={(e) => setCustomBetAmount(Number(e.target.value))}
-                  placeholder="0.00"
+                  type="text"
+                  inputMode="decimal"
+                  value={betAmountInput}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Allow empty string, numbers, and one decimal point
+                    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                      setBetAmountInput(value);
+                      const numValue = parseFloat(value);
+                      if (!isNaN(numValue) && numValue >= 0) {
+                        setCustomBetAmount(numValue);
+                      } else if (value === "" || value === ".") {
+                        setCustomBetAmount(0);
+                      }
+                    }
+                  }}
+                  onBlur={() => {
+                    // Format on blur: if empty or invalid, set to 0
+                    if (betAmountInput === "" || betAmountInput === ".") {
+                      setBetAmountInput("");
+                      setCustomBetAmount(0);
+                    } else {
+                      const numValue = parseFloat(betAmountInput);
+                      if (!isNaN(numValue) && numValue >= 0) {
+                        setBetAmountInput(numValue.toFixed(4));
+                        setCustomBetAmount(numValue);
+                      } else {
+                        setBetAmountInput("");
+                        setCustomBetAmount(0);
+                      }
+                    }
+                  }}
+                  placeholder="0.0000"
                   className="flex-1 min-w-[100px] bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-center font-semibold text-xs"
                 />
                 <button
-                  onClick={() => setCustomBetAmount(customBetAmount + 0.01)}
+                  onClick={() => {
+                    const newValue = customBetAmount + 0.01;
+                    setCustomBetAmount(newValue);
+                    setBetAmountInput(newValue.toFixed(4));
+                  }}
                   className="bg-gray-700 hover:bg-gray-600 text-white font-bold w-7 h-7 rounded text-xs"
                 >
                   +
                 </button>
                 {/* Quick Bet Buttons - On same line */}
                 <button
-                  onClick={() => setCustomBetAmount(remainingBuyIn * 0.33)}
+                  onClick={() => {
+                    const value = remainingBuyIn * 0.33;
+                    setCustomBetAmount(value);
+                    setBetAmountInput(value.toFixed(4));
+                  }}
                   className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
                 >
                   33%
                 </button>
                 <button
-                  onClick={() => setCustomBetAmount(remainingBuyIn * 0.5)}
+                  onClick={() => {
+                    const value = remainingBuyIn * 0.5;
+                    setCustomBetAmount(value);
+                    setBetAmountInput(value.toFixed(4));
+                  }}
                   className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
                 >
                   50%
                 </button>
                 <button
-                  onClick={() => setCustomBetAmount(remainingBuyIn * 0.75)}
+                  onClick={() => {
+                    const value = remainingBuyIn * 0.75;
+                    setCustomBetAmount(value);
+                    setBetAmountInput(value.toFixed(4));
+                  }}
                   className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
                 >
                   75%
                 </button>
                 <button
-                  onClick={() => setCustomBetAmount(remainingBuyIn)}
+                  onClick={() => {
+                    setCustomBetAmount(remainingBuyIn);
+                    setBetAmountInput(remainingBuyIn.toFixed(4));
+                  }}
                   className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
                 >
                   Max
@@ -709,8 +773,8 @@ export default function GamePage() {
               
               <button
                 onClick={() => handlePlayerAction(PlayerActionType.Check)}
-                disabled={loading || callAmount > 0}
-                title={callAmount > 0 ? "Cannot check - there's a bet to call" : "Check (pass without betting)"}
+                disabled={loading || !chipsEqual}
+                title={!chipsEqual ? "Cannot check - chips must be equal" : "Check (pass without betting)"}
                 className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
               >
                 ✓ Check
@@ -719,7 +783,7 @@ export default function GamePage() {
               <button
                 onClick={() => handlePlayerAction(PlayerActionType.Call)}
                 disabled={loading || callAmount === 0}
-                title={callAmount === 0 ? "Nothing to call - use Check instead" : `Call ${(callAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL`}
+                title={callAmount === 0 ? "Nothing to call " : `Call ${(callAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL`}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform relative group"
               >
                 📞 Call
@@ -732,12 +796,18 @@ export default function GamePage() {
               
               <button
                 onClick={() => handlePlayerAction(PlayerActionType.Bet, customBetAmount > 0 ? customBetAmount : gameState.bigBlind / LAMPORTS_PER_SOL)}
-                disabled={loading}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
+                disabled={loading || (customBetAmount > 0 && !isBetAmountValid)}
+                title={customBetAmount > 0 && !isBetAmountValid ? `Minimum bet is ${minBetAmount.toFixed(4)} SOL` : `Bet ${customBetAmount > 0 ? customBetAmount.toFixed(4) : (gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)} SOL`}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform relative group"
               >
                 💰 {customBetAmount > 0 
                   ? `Bet ${customBetAmount.toFixed(4)}` 
                   : `Bet ${(gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)}`}
+                {customBetAmount > 0 && !isBetAmountValid && (
+                  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-[8px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                    Min: {minBetAmount.toFixed(4)} SOL
+                  </span>
+                )}
               </button>
             </div>
           </div>
