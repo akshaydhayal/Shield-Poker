@@ -17,6 +17,7 @@ export default function Home() {
   const [pokerClient, setPokerClient] = useState<PokerClient | null>(null);
   const [allGames, setAllGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCreateGameModal, setShowCreateGameModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"live" | "completed">("live");
@@ -71,21 +72,39 @@ export default function Home() {
     router.push(`/game/${joinGameId}`);
   };
 
-  const fetchAllGames = async () => {
-    if (!pokerClient) return;
+  const fetchAllGames = async (isRefresh: boolean = false) => {
+    if (!pokerClient) {
+      console.log("PokerClient not available yet");
+      return;
+    }
     try {
+      if (isRefresh) {
+        setRefreshing(true);
+      }
+      console.log("Fetching all games...");
       const games = await pokerClient.getAllGames();
+      console.log(`Fetched ${games.length} game(s) from on-chain`);
       setAllGames(games);
-    } catch (err) {
+      setError(null);
+    } catch (err: any) {
       console.error("Error fetching all games:", err);
+      console.error("Error details:", err.message, err.stack);
+      setError(`Failed to fetch games: ${err.message || "Unknown error"}`);
+    } finally {
+      if (isRefresh) {
+        setRefreshing(false);
+      }
     }
   };
 
+  const handleRefresh = () => {
+    fetchAllGames(true);
+  };
+
+  // Fetch games only once on mount (when pokerClient is ready)
   useEffect(() => {
     if (pokerClient) {
-      fetchAllGames();
-      const interval = setInterval(fetchAllGames, 5000); // Poll every 5 seconds
-      return () => clearInterval(interval);
+      fetchAllGames(false);
     }
   }, [pokerClient]);
 
@@ -123,27 +142,40 @@ export default function Home() {
 
           {connected && (
             <div>
-              {/* Tabs */}
-              <div className="flex gap-3 mb-8 bg-gradient-to-r from-white/10 via-purple-500/5 to-white/10 rounded-xl p-1.5 border border-white/20 shadow-lg">
+              {/* Header with Tabs and Refresh Button */}
+              <div className="flex items-center justify-between mb-8 gap-4">
+                {/* Tabs */}
+                <div className="flex gap-3 flex-1 bg-gradient-to-r from-white/10 via-purple-500/5 to-white/10 rounded-xl p-1.5 border border-white/20 shadow-lg">
+                  <button
+                    onClick={() => setActiveTab("live")}
+                    className={`flex-1 px-4 py-3 font-bold rounded-lg transition-all duration-200 ${
+                      activeTab === "live"
+                        ? "bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 text-white shadow-lg shadow-green-500/40 scale-105"
+                        : "text-white/60 hover:text-white hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5"
+                    }`}
+                  >
+                    🎮 <span className="ml-1">Live Games</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("completed")}
+                    className={`flex-1 px-4 py-3 font-bold rounded-lg transition-all duration-200 ${
+                      activeTab === "completed"
+                        ? "bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white shadow-lg shadow-purple-500/40 scale-105"
+                        : "text-white/60 hover:text-white hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5"
+                    }`}
+                  >
+                    ✅ <span className="ml-1">Completed Games</span>
+                  </button>
+                </div>
+                
+                {/* Refresh Button */}
                 <button
-                  onClick={() => setActiveTab("live")}
-                  className={`flex-1 px-4 py-3 font-bold rounded-lg transition-all duration-200 ${
-                    activeTab === "live"
-                      ? "bg-gradient-to-r from-green-500 via-emerald-500 to-green-600 text-white shadow-lg shadow-green-500/40 scale-105"
-                      : "text-white/60 hover:text-white hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5"
-                  }`}
+                  onClick={handleRefresh}
+                  disabled={refreshing || !pokerClient}
+                  className="px-4 py-3 font-bold rounded-lg transition-all duration-200 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white shadow-lg shadow-purple-500/40 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center gap-2"
                 >
-                  🎮 <span className="ml-1">Live Games</span>
-                </button>
-                <button
-                  onClick={() => setActiveTab("completed")}
-                  className={`flex-1 px-4 py-3 font-bold rounded-lg transition-all duration-200 ${
-                    activeTab === "completed"
-                      ? "bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-600 text-white shadow-lg shadow-purple-500/40 scale-105"
-                      : "text-white/60 hover:text-white hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5"
-                  }`}
-                >
-                  ✅ <span className="ml-1">Completed Games</span>
+                  <span className={`${refreshing ? 'animate-spin' : ''}`}>🔄</span>
+                  <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
                 </button>
               </div>
 

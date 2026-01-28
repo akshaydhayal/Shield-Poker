@@ -109,3 +109,2335 @@ Show chips committed per player
 Add bet amount input field
 Auto-advance phase when conditions are met (optional)
 Should I implement these UI improvements? I can add the missing buttons, turn indicators, and game state displays to make the flow clear.
+
+
+
+
+
+
+
+
+
+
+
+magicblock Epheremal rollups docs:
+Ok, so i am givng you magicblock priavte epheremal rollups(PER) docs along with rock paper scissor game:Integrate Magicblock PER in our poker game properly with help of these docs
+
+
+How-to-Guide
+Quickstart
+Enable privacy in any Solana program state account through MagicBlock’s ER and Trusted Execution Environment on Intel TDX.
+
+​
+Quick Access
+Check out example:
+GitHub
+Anchor Implementation
+dApp (Coming soon!)
+Play Now
+​
+Step-By-Step Guide
+Build your program and upgrade it with permission and delegation hooks that utilize MagicBlock’s Permission Program ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1 and Delegation Program DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh:
+1
+Write your program
+
+Write your Solana program as you normally.
+2
+Add restrictions through permission hooks in your program.
+
+Add permission hooks that create and manage access control, see details.
+3
+Add delegation hooks in your program
+
+Add delegation hooks for permissions and permissioned accounts to enforce restrictions.
+These public validators are supported for development. Make sure to add the specific ER validator in your instruction when delegating:
+
+Asia (devnet-as.magicblock.app): MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57
+EU (devnet-eu.magicblock.app): MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e
+US (devnet-us.magicblock.app): MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd
+TEE (tee.magicblock.app): FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA
+Local ER (localhost): mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev
+4
+Deploy your program on Solana
+
+Deploy your Solana program using Anchor CLI.
+5
+Implement authorization in your client
+
+Sign user message to retrieve authorization token from TEE endpoint.
+6
+Execute transactions and test privacy
+
+Request for authorization token and send confidential transactions.
+​
+Rock-Paper-Scissor Example
+The following software packages may be required, other versions may also be compatible:
+Software	Version	Installation Guide
+Solana	2.3.13	Install Solana
+Rust	1.85.0	Install Rust
+Anchor	0.32.1	Install Anchor
+Node	24.10.0	Install Node
+The latest Permission Program requires SDK version >=0.8.0. See migration guide for details.
+​
+Code Snippets
+1. Write program
+A simple rock-paper-scissor program where player can make choices and reveal the outcome:
+code:
+#[program]
+pub mod anchor_rock_paper_scissor {
+
+    use super::*;
+
+    // 1️⃣ Create and auto-join as Player 1
+    pub fn create_game(ctx: Context<CreateGame>, game_id: u64) -> Result<()> {
+        let game = &mut ctx.accounts.game;
+        let player1 = ctx.accounts.player1.key();
+
+        game.game_id = game_id;
+        game.player1 = Some(player1);
+        game.player2 = None;
+        game.result = GameResult::None;
+
+        msg!("Game ID: {}", game_id);
+        msg!("Player 1 PDA: {}", player1);
+
+        // initialize PlayerChoice for player 1
+        let player_choice = &mut ctx.accounts.player_choice;
+        player_choice.game_id = game_id;
+        player_choice.player = player1;
+        player_choice.choice = None;
+
+        msg!("Game {} created and joined by {}", game_id, player1);
+
+        Ok(())
+    }
+
+    // 2️⃣ Player 2 joins the game
+    pub fn join_game(ctx: Context<JoinGame>, game_id: u64) -> Result<()> {
+        let game = &mut ctx.accounts.game;
+        let player = ctx.accounts.player.key();
+
+        require!(game.player1 != Some(player), GameError::CannotJoinOwnGame);
+        require!(game.player2.is_none(), GameError::GameFull);
+
+        game.player2 = Some(player);
+
+        // Create PlayerChoice PDA for player 2
+        let player_choice = &mut ctx.accounts.player_choice;
+        player_choice.game_id = game_id;
+        player_choice.player = player;
+        player_choice.choice = None;
+
+        msg!("{} joined Game {} as player 2", player, game_id);
+        Ok(())
+    }
+
+    // 3️⃣ Player makes a choice
+    pub fn make_choice(ctx: Context<MakeChoice>, _game_id: u64, choice: Choice) -> Result<()> {
+        let player_choice = &mut ctx.accounts.player_choice;
+        require!(player_choice.choice.is_none(), GameError::AlreadyChose);
+
+        player_choice.choice = choice.into();
+        msg!(
+            "Player {:?} made choice {:?}",
+            player_choice.player,
+            player_choice.choice
+        );
+
+        Ok(())
+    }
+
+    // 4️⃣ Reveal and record the winner
+    pub fn reveal_winner(ctx: Context<RevealWinner>) -> Result<()> {
+        let game = &mut ctx.accounts.game;
+        let player1_choice = &ctx.accounts.player1_choice;
+        let player2_choice = &ctx.accounts.player2_choice;
+
+        // 1️⃣ Clone choices into game
+        game.player1_choice = player1_choice.choice.clone().into();
+        game.player2_choice = player2_choice.choice.clone().into();
+
+        // 2️⃣ Ensure both players exist
+        let player1 = game.player1.ok_or(GameError::MissingOpponent)?;
+        let player2 = game.player2.ok_or(GameError::MissingOpponent)?;
+
+        // 3️⃣ Ensure both players made a choice
+        let choice1 = game
+            .player1_choice
+            .clone()
+            .ok_or(GameError::MissingChoice)?;
+        let choice2 = game
+            .player2_choice
+            .clone()
+            .ok_or(GameError::MissingChoice)?;
+
+        // 4️⃣ Determine winner based on choices
+        game.result = match (choice1, choice2) {
+            (Choice::Rock, Choice::Scissors)
+            | (Choice::Paper, Choice::Rock)
+            | (Choice::Scissors, Choice::Paper) => GameResult::Winner(player1),
+
+            (Choice::Rock, Choice::Paper)
+            | (Choice::Paper, Choice::Scissors)
+            | (Choice::Scissors, Choice::Rock) => GameResult::Winner(player2),
+
+            _ => GameResult::Tie,
+        };
+
+        msg!("Result: {:?}", &game.result);
+
+        Ok(())
+    }
+
+}
+
+#[derive(Accounts)]
+#[instruction(game_id: u64)]
+pub struct CreateGame<'info> {
+    #[account(
+        init_if_needed,
+        payer = player1,
+        space = 8 + Game::LEN,
+        seeds = [GAME_SEED, &game_id.to_le_bytes()],
+        bump
+    )]
+    pub game: Account<'info, Game>,
+
+    #[account(
+        init_if_needed,
+        payer = player1,
+        space = 8 + PlayerChoice::LEN,
+        seeds = [PLAYER_CHOICE_SEED, &game_id.to_le_bytes(), player1.key().as_ref()],
+        bump
+    )]
+    pub player_choice: Account<'info, PlayerChoice>,
+
+    #[account(mut)]
+    pub player1: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(game_id: u64)]
+pub struct JoinGame<'info> {
+    #[account(
+        mut,
+        seeds = [GAME_SEED, &game_id.to_le_bytes()],
+        bump
+    )]
+    pub game: Account<'info, Game>,
+
+    #[account(
+        init_if_needed,
+        payer = player,
+        space = 8 + PlayerChoice::LEN,
+        seeds = [PLAYER_CHOICE_SEED, &game_id.to_le_bytes(), player.key().as_ref()],
+        bump
+    )]
+    pub player_choice: Account<'info, PlayerChoice>,
+
+    #[account(mut)]
+    pub player: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(game_id: u64)]
+pub struct MakeChoice<'info> {
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game_id.to_le_bytes(), player.key().as_ref()],
+        bump
+    )]
+    pub player_choice: Account<'info, PlayerChoice>,
+
+    #[account(mut)]
+    pub player: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RevealWinner<'info> {
+    #[account(mut, seeds = [GAME_SEED, &game.game_id.to_le_bytes()], bump)]
+    pub game: Account<'info, Game>,
+
+    /// Player1's choice PDA (derived automatically)
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game.game_id.to_le_bytes(), game.player1.unwrap().as_ref()],
+        bump
+    )]
+    pub player1_choice: Account<'info, PlayerChoice>,
+
+    /// Player2's choice PDA (derived automatically)
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game.game_id.to_le_bytes(), game.player2.unwrap().as_ref()],
+        bump
+    )]
+    pub player2_choice: Account<'info, PlayerChoice>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+}
+
+#[account]
+pub struct Game {
+    pub game_id: u64,
+    pub player1: Option<Pubkey>,
+    pub player2: Option<Pubkey>,
+    pub player1_choice: Option<Choice>,
+    pub player2_choice: Option<Choice>,
+    pub result: GameResult,
+}
+impl Game {
+    pub const LEN: usize = 8                // game_id
+        + (32 + 1) * 2                       // player1, player2
+        + (1 + 1) * 2                        // player1_choice, player2_choice
+        + (1 + 32); // result (1 byte tag + 32 bytes pubkey for Winner variant)
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
+pub enum GameResult {
+    Winner(Pubkey),
+    Tie,
+    None,
+}
+
+#[account]
+pub struct PlayerChoice {
+    pub game_id: u64,
+    pub player: Pubkey,
+    pub choice: Option<Choice>,
+}
+impl PlayerChoice {
+    pub const LEN: usize = 8 + 8 + 32 + 2;
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
+pub enum Choice {
+    Rock,
+    Paper,
+    Scissors,
+}
+
+#[error_code]
+pub enum GameError {
+    #[msg("You already made your choice.")]
+    AlreadyChose,
+    #[msg("You cannot join your own game.")]
+    CannotJoinOwnGame,
+    #[msg("Both players must make a choice first.")]
+    MissingChoice,
+    #[msg("Opponent not found.")]
+    MissingOpponent,
+    #[msg("Game is already full.")]
+    GameFull,
+}
+
+/// ... Other context and accounts for delegation and privacy
+
+2. Restrict
+Create and update account-level permissions with members through MagicBlock’s Permission Program ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1
+code:
+#[program]
+pub mod anchor_rock_paper_scissor {
+
+    use super::*;
+
+    // 4️⃣ Reveal and record the winner
+    pub fn reveal_winner(ctx: Context<RevealWinner>) -> Result<()> {
+        let game = &mut ctx.accounts.game;
+        let player1_choice = &ctx.accounts.player1_choice;
+        let player2_choice = &ctx.accounts.player2_choice;
+        let permission_program = &ctx.accounts.permission_program.to_account_info();
+        let permission_game = &ctx.accounts.permission_game.to_account_info();
+        let permission1 = &ctx.accounts.permission1.to_account_info();
+        let permission2 = &ctx.accounts.permission2.to_account_info();
+        let magic_program = &ctx.accounts.magic_program.to_account_info();
+        let magic_context = &ctx.accounts.magic_context.to_account_info();
+
+        // 1️⃣ Clone choices into game
+        game.player1_choice = player1_choice.choice.clone().into();
+        game.player2_choice = player2_choice.choice.clone().into();
+
+        // 2️⃣ Ensure both players exist
+        let player1 = game.player1.ok_or(GameError::MissingOpponent)?;
+        let player2 = game.player2.ok_or(GameError::MissingOpponent)?;
+
+        // 3️⃣ Ensure both players made a choice
+        let choice1 = game
+            .player1_choice
+            .clone()
+            .ok_or(GameError::MissingChoice)?;
+        let choice2 = game
+            .player2_choice
+            .clone()
+            .ok_or(GameError::MissingChoice)?;
+
+        // 4️⃣ Determine winner based on choices
+        game.result = match (choice1, choice2) {
+            (Choice::Rock, Choice::Scissors)
+            | (Choice::Paper, Choice::Rock)
+            | (Choice::Scissors, Choice::Paper) => GameResult::Winner(player1),
+
+            (Choice::Rock, Choice::Paper)
+            | (Choice::Paper, Choice::Scissors)
+            | (Choice::Scissors, Choice::Rock) => GameResult::Winner(player2),
+
+            _ => GameResult::Tie,
+        };
+
+        // Update Permissions for reveal
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&game.to_account_info(), true)
+            .authority(&game.to_account_info(), false)
+            .permission(&permission_game.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[GAME_SEED, &game.game_id.to_le_bytes(), &[ctx.bumps.game]]])?;
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&player1_choice.to_account_info(), true)
+            .authority(&player1_choice.to_account_info(), false)
+            .permission(&permission1.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[
+                PLAYER_CHOICE_SEED,
+                &player1_choice.game_id.to_le_bytes(),
+                &player1_choice.player.as_ref(),
+                &[ctx.bumps.player1_choice],
+            ]])?;
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&player2_choice.to_account_info(), true)
+            .authority(&player2_choice.to_account_info(), false)
+            .permission(&permission2.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[
+                PLAYER_CHOICE_SEED,
+                &player2_choice.game_id.to_le_bytes(),
+                &player2_choice.player.as_ref(),
+                &[ctx.bumps.player2_choice],
+            ]])?;
+
+        msg!("Result: {:?}", &game.result);
+        Ok(())
+    }
+
+    /// Creates a permission based on account type input.
+    /// Derives the bump from the account type and seeds, then calls the permission program.
+    pub fn create_permission(
+        ctx: Context<CreatePermission>,
+        account_type: AccountType,
+        members: Option<Vec<Member>>,
+    ) -> Result<()> {
+        let CreatePermission {
+            permissioned_account,
+            permission,
+            payer,
+            permission_program,
+            system_program,
+        } = ctx.accounts;
+
+        let seed_data = derive_seeds_from_account_type(&account_type);
+
+        let (_, bump) = Pubkey::find_program_address(
+            &seed_data.iter().map(|s| s.as_slice()).collect::<Vec<_>>(),
+            &crate::ID,
+        );
+
+        let mut seeds = seed_data.clone();
+        seeds.push(vec![bump]);
+        let seed_refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
+
+        CreatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&permissioned_account.to_account_info())
+            .permission(&permission)
+            .payer(&payer)
+            .system_program(&system_program)
+            .args(MembersArgs { members })
+            .invoke_signed(&[seed_refs.as_slice()])?;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct RevealWinner<'info> {
+    #[account(mut, seeds = [GAME_SEED, &game.game_id.to_le_bytes()], bump)]
+    pub game: Account<'info, Game>,
+
+    /// Player1's choice PDA (derived automatically)
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game.game_id.to_le_bytes(), game.player1.unwrap().as_ref()],
+        bump
+    )]
+    pub player1_choice: Account<'info, PlayerChoice>,
+
+    /// Player2's choice PDA (derived automatically)
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game.game_id.to_le_bytes(), game.player2.unwrap().as_ref()],
+        bump
+    )]
+    pub player2_choice: Account<'info, PlayerChoice>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission_game: UncheckedAccount<'info>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission1: UncheckedAccount<'info>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission2: UncheckedAccount<'info>,
+    /// Anyone can trigger this
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: PERMISSION PROGRAM
+    #[account(address = PERMISSION_PROGRAM_ID)]
+    pub permission_program: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct CreatePermission<'info> {
+    /// CHECK: Validated via permission program CPI
+    pub permissioned_account: UncheckedAccount<'info>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: PERMISSION PROGRAM
+    #[account(address = PERMISSION_PROGRAM_ID)]
+    pub permission_program: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub enum AccountType {
+    Game { game_id: u64 },
+    PlayerChoice { game_id: u64, player: Pubkey },
+}
+
+fn derive_seeds_from_account_type(account_type: &AccountType) -> Vec<Vec<u8>> {
+    match account_type {
+        AccountType::Game { game_id } => {
+            vec![GAME_SEED.to_vec(), game_id.to_le_bytes().to_vec()]
+        }
+        AccountType::PlayerChoice { game_id, player } => {
+            vec![
+                PLAYER_CHOICE_SEED.to_vec(),
+                game_id.to_le_bytes().to_vec(),
+                player.to_bytes().to_vec(),
+            ]
+        }
+    }
+}
+
+/// Other context and accounts ...
+
+3. Delegate
+Enforce privacy of accounts through delegation to TEE validator via MagicBlock’s Delegation Program DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh, both permission and permissioned_account must be delegated.
+These public validators are supported for development. Make sure to add the specific ER validator in your instruction when delegating:
+
+Asia (devnet-as.magicblock.app): MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57
+EU (devnet-eu.magicblock.app): MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e
+US (devnet-us.magicblock.app): MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd
+TEE (tee.magicblock.app): FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA
+Local ER (localhost): mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev
+
+code:
+#[ephemeral] // This adds undelegation instruction for ER validator
+#[program]
+pub mod anchor_rock_paper_scissor {
+
+    use super::*;
+
+    // Other instructions
+
+    // 4️⃣ Reveal and record the winner
+    pub fn reveal_winner(ctx: Context<RevealWinner>) -> Result<()> {
+        let game = &mut ctx.accounts.game;
+        let player1_choice = &ctx.accounts.player1_choice;
+        let player2_choice = &ctx.accounts.player2_choice;
+        let permission_program = &ctx.accounts.permission_program.to_account_info();
+        let permission_game = &ctx.accounts.permission_game.to_account_info();
+        let permission1 = &ctx.accounts.permission1.to_account_info();
+        let permission2 = &ctx.accounts.permission2.to_account_info();
+        let magic_program = &ctx.accounts.magic_program.to_account_info();
+        let magic_context = &ctx.accounts.magic_context.to_account_info();
+
+        // 1️⃣ Clone choices into game
+        game.player1_choice = player1_choice.choice.clone().into();
+        game.player2_choice = player2_choice.choice.clone().into();
+
+        // 2️⃣ Ensure both players exist
+        let player1 = game.player1.ok_or(GameError::MissingOpponent)?;
+        let player2 = game.player2.ok_or(GameError::MissingOpponent)?;
+
+        // 3️⃣ Ensure both players made a choice
+        let choice1 = game
+            .player1_choice
+            .clone()
+            .ok_or(GameError::MissingChoice)?;
+        let choice2 = game
+            .player2_choice
+            .clone()
+            .ok_or(GameError::MissingChoice)?;
+
+        // 4️⃣ Determine winner based on choices
+        game.result = match (choice1, choice2) {
+            (Choice::Rock, Choice::Scissors)
+            | (Choice::Paper, Choice::Rock)
+            | (Choice::Scissors, Choice::Paper) => GameResult::Winner(player1),
+
+            (Choice::Rock, Choice::Paper)
+            | (Choice::Paper, Choice::Scissors)
+            | (Choice::Scissors, Choice::Rock) => GameResult::Winner(player2),
+
+            _ => GameResult::Tie,
+        };
+
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&game.to_account_info(), true)
+            .authority(&game.to_account_info(), false)
+            .permission(&permission_game.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[GAME_SEED, &game.game_id.to_le_bytes(), &[ctx.bumps.game]]])?;
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&player1_choice.to_account_info(), true)
+            .authority(&player1_choice.to_account_info(), false)
+            .permission(&permission1.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[
+                PLAYER_CHOICE_SEED,
+                &player1_choice.game_id.to_le_bytes(),
+                &player1_choice.player.as_ref(),
+                &[ctx.bumps.player1_choice],
+            ]])?;
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&player2_choice.to_account_info(), true)
+            .authority(&player2_choice.to_account_info(), false)
+            .permission(&permission2.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[
+                PLAYER_CHOICE_SEED,
+                &player2_choice.game_id.to_le_bytes(),
+                &player2_choice.player.as_ref(),
+                &[ctx.bumps.player2_choice],
+            ]])?;
+
+        msg!("Result: {:?}", &game.result);
+
+        game.exit(&crate::ID)?;
+
+        commit_and_undelegate_accounts(
+            &ctx.accounts.payer,
+            vec![&game.to_account_info()],
+            magic_context,
+            magic_program,
+        )?;
+
+        Ok(())
+    }
+
+    /// Delegate account to the delegation program based on account type
+    /// Set specific validator based on ER, see https://docs.magicblock.gg/pages/get-started/how-integrate-your-program/local-setup
+    pub fn delegate_pda(ctx: Context<DelegatePda>, account_type: AccountType) -> Result<()> {
+        let seed_data = derive_seeds_from_account_type(&account_type);
+        let seeds_refs: Vec<&[u8]> = seed_data.iter().map(|s| s.as_slice()).collect();
+
+        let validator = ctx.accounts.validator.as_ref().map(|v| v.key());
+        ctx.accounts.delegate_pda(
+            &ctx.accounts.payer,
+            &seeds_refs,
+            DelegateConfig {
+                validator,
+                ..Default::default()
+            },
+        )?;
+        Ok(())
+    }
+}
+
+#[commit] // adding magic_context and magic_program accounts to context
+#[derive(Accounts)]
+pub struct RevealWinner<'info> {
+    #[account(mut, seeds = [GAME_SEED, &game.game_id.to_le_bytes()], bump)]
+    pub game: Account<'info, Game>,
+
+    /// Player1's choice PDA (derived automatically)
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game.game_id.to_le_bytes(), game.player1.unwrap().as_ref()],
+        bump
+    )]
+    pub player1_choice: Account<'info, PlayerChoice>,
+
+    /// Player2's choice PDA (derived automatically)
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game.game_id.to_le_bytes(), game.player2.unwrap().as_ref()],
+        bump
+    )]
+    pub player2_choice: Account<'info, PlayerChoice>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission_game: UncheckedAccount<'info>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission1: UncheckedAccount<'info>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission2: UncheckedAccount<'info>,
+    /// Anyone can trigger this
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: PERMISSION PROGRAM
+    #[account(address = PERMISSION_PROGRAM_ID)]
+    pub permission_program: UncheckedAccount<'info>,
+}
+
+/// Unified delegate PDA context
+#[delegate] // enable delegation
+#[derive(Accounts)]
+pub struct DelegatePda<'info> {
+    /// CHECK: The PDA to delegate
+    #[account(mut, del)]
+    pub pda: AccountInfo<'info>,
+    pub payer: Signer<'info>,
+    /// CHECK: Checked by the delegate program
+    pub validator: Option<AccountInfo<'info>>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub enum AccountType {
+    Game { game_id: u64 },
+    PlayerChoice { game_id: u64, player: Pubkey },
+}
+
+fn derive_seeds_from_account_type(account_type: &AccountType) -> Vec<Vec<u8>> {
+    match account_type {
+        AccountType::Game { game_id } => {
+            vec![GAME_SEED.to_vec(), game_id.to_le_bytes().to_vec()]
+        }
+        AccountType::PlayerChoice { game_id, player } => {
+            vec![
+                PLAYER_CHOICE_SEED.to_vec(),
+                game_id.to_le_bytes().to_vec(),
+                player.to_bytes().to_vec(),
+            ]
+        }
+    }
+}
+
+4. Deploy
+Now you’re program is upgraded and ready! Build and deploy to the desired cluster:
+  anchor build && anchor deploy
+
+5. Authorize
+Set up interaction with ER RPC in TEE:
+Verify integrity of TEE RPC via https://pccs.phala.network/tdx/certification/v4
+Request an authorization token for user to interact with TEE endpoint
+import {
+  verifyTeeRpcIntegrity,
+  getAuthToken,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
+
+// Verify the integrity of TEE RPC
+const isVerified = await verifyTeeRpcIntegrity(EPHEMERAL_RPC_URL);
+
+// Get AuthToken before making request to TEE
+const token = await getAuthToken(
+  EPHEMERAL_RPC_URL,
+  wallet.publicKey,
+  (message: Uint8Array) =>
+    Promise.resolve(nacl.sign.detached(message, wallet.secretKey))
+);
+
+6. Test
+Test your program with the Private Ephemeral Rollup connection:
+https://tee.magicblock.app?token=${token}
+These public validators are supported for development. Make sure to add the specific ER validator in your instruction when delegating:
+
+Asia (devnet-as.magicblock.app): MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57
+EU (devnet-eu.magicblock.app): MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e
+US (devnet-us.magicblock.app): MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd
+TEE (tee.magicblock.app): FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA
+Local ER (localhost): mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev
+
+
+
+How-to-Guide
+Access Control
+Learn how to manage fine-grained access control and member permissions in Private Ephemeral Rollups.
+​
+Overview
+Private Ephemeral Rollups are Ephemeral Rollups that enable fine-grained permission over permissioned accounts in a Trusted Execution Environment with compliance at its heart. Each permission account maintains a list of members with specific flags that determine what actions they can perform.
+​
+Key Concepts
+Permission Account: A PDA that stores access control rules for a specific account
+Members: Addresses granted specific permissions via flags
+Flags: Bitmasks that define what a member can do (authority, view logs, view balances, etc.)
+Public Permissions: When members are set to None, the permissioned account becomes temporarily visible
+​
+Member Flags
+Member flags define fine-grained permissions for each member. Flags can be combined using bitwise OR to grant multiple permissions.
+Flag Descriptions:
+AUTHORITY: Allows a member to update and delegate permission settings, add/remove other members, and update member flags.
+TX_LOGS: Allows a member to view transaction execution logs.
+TX_BALANCES: Allows a member to view account balance changes.
+TX_MESSAGE: Allows a member to view transaction message data.
+ACCOUNT_SIGNATURES: Allows a member to view account signatures
+
+Rust SDK code
+use ephemeral_rollups_sdk::access_control::structs::{
+    Member,
+    AUTHORITY_FLAG,
+    TX_LOGS_FLAG,
+    TX_BALANCES_FLAG,
+    TX_MESSAGE_FLAG,
+    ACCOUNT_SIGNATURES_FLAG,
+};
+
+// Set flags by combining them with bitwise OR
+let flags = AUTHORITY_FLAG | TX_LOGS_FLAG;
+
+// Create a member with combined flags
+let mut member = Member {
+    flags,
+    pubkey: user_pubkey,
+};
+
+// Check if member has a specific flag using bitwise AND
+let is_authority = (member.flags & AUTHORITY_FLAG) != 0;
+let can_see_logs = (member.flags & TX_LOGS_FLAG) != 0;
+
+// Use helper methods to set/remove flags
+member.set_flags(TX_BALANCES_FLAG); // Add a flag
+member.remove_flags(TX_LOGS_FLAG);  // Remove a flag
+
+
+Permission Lifecycle
+The typical lifecycle of a permissioned account requires interaction with MagicBlock’s Permission Program ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1 and Delegation Program DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh:
+
+1Create Permission
+Initialize a new permission account with initial members and their flags.
+
+2Delegate Permission
+Delegate the permission to Private Ephemeral Rollup to enable enforcement and real-time access control.
+These public validators are supported for development. Make sure to add the specific ER validator in your instruction when delegating:
+
+Asia (devnet-as.magicblock.app): MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57
+EU (devnet-eu.magicblock.app): MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e
+US (devnet-us.magicblock.app): MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd
+TEE (tee.magicblock.app): FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA
+Local ER (localhost): mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev
+
+3Update Permission
+Add, remove, or modify member permissions as needed. Updates can be made in real-time on Private Ephemeral Rollup.
+
+4Make Request
+Before making requests, verify TEE RPC integrity and obtain an authorization token. Only members with appropriate flags can access or modify the account state.
+
+5Commit and Undelegate
+Sync the final state back to Solana and return the account to Base Layer control.
+
+6Close Permission
+Close the permission account and reclaim its lamports when no longer needed.
+​
+Permission Operations
+1. Create
+Once you’ve created your program, you can add permission and delegation hooks to control access to your accounts. For example, see Quickstart.
+Create a new permission account with initial members and their flags via MagicBlock’s Permission Program ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1.
+
+rust sdk code:
+use ephemeral_rollups_sdk::access_control::{
+    instructions::CreatePermissionCpiBuilder,
+    structs::{
+        Member,
+        MembersArgs,
+        AUTHORITY_FLAG,        // Member can directly modify the permission
+        TX_LOGS_FLAG,          // Member can view transaction logs
+        TX_BALANCES_FLAG       // Member can view account balances
+    }
+};
+
+let members = Some(vec![
+    Member {
+        // AUTHORITY_FLAG allows this member to modify permission settings
+        // TX_LOGS_FLAG allows viewing transaction logs
+        flags: AUTHORITY_FLAG | TX_LOGS_FLAG,
+        pubkey: *payer.key,
+    },
+]);
+
+// Note: Either the authority or permissioned_account can sign the transaction
+// The signer depends on who has AUTHORITY_FLAG in the members list
+CreatePermissionCpiBuilder::new(&permission_program)
+    .permissioned_account(&permissioned_account)
+    .permission(&permission)
+    .payer(&payer)
+    .system_program(&system_program)
+    .args(MembersArgs { members })
+    .invoke_signed(&[seed_refs.as_slice()])?;
+
+Use Cases:
+Initialize access control for a new delegated account
+Set up authority members and their permissions
+Define who can view transaction details
+
+2. Delegate
+Delegate a permissioned account to enable low-latency Private Ephemeral Rollup execution via MagicBlock’s Delegation Program DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh.
+These public validators are supported for development. Make sure to add the specific ER validator in your instruction when delegating:
+
+Asia (devnet-as.magicblock.app): MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57
+EU (devnet-eu.magicblock.app): MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e
+US (devnet-us.magicblock.app): MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd
+TEE (tee.magicblock.app): FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA
+Local ER (localhost): mAGicPQYBMvcYveUZA5F5UNNwyHvfYh5xkLS2Fr1mev
+
+rust sdk code:
+use ephemeral_rollups_sdk::access_control::{
+    instructions::DelegatePermissionCpiBuilder
+};
+
+// Delegate the permission to enable low-latency Ephemeral Rollup execution
+// Either authority (with AUTHORITY_FLAG) or permissioned_account can authorize
+DelegatePermissionCpiBuilder::new(&permission_program)
+    .payer(&payer)  // Pays for account creation
+    .authority(&payer, false)  // Authority signer (has AUTHORITY_FLAG)
+    .permissioned_account(&permissioned_account, true)  // or permissioned_account can sign
+    .permission(&permission)
+    .system_program(&system_program)
+    .owner_program(&owner_program)
+    .delegation_buffer(&delegation_buffer)
+    .delegation_record(&delegation_record)
+    .delegation_metadata(&delegation_metadata)
+    .delegation_program(&delegation_program)
+    .validator(&validator)  // Validator that will execute the delegated state
+    .invoke_signed(&[seed_refs.as_slice()])?;
+
+Use Cases:
+Enable ER execution for a permissioned account
+Designate a specific validator to execute state changes
+Set up delegation for real-time transaction processing
+Important:
+Either the authority or permissioned_account must sign based on AUTHORITY_FLAG
+The validator processes transactions at ER speed
+Commit frequency determines how often state syncs to Solana
+Once delegated to Private Ephemeral Rollup, the permission is enforced - only members with appropriate flags can access or modify the account state
+
+3. Update
+Modify existing members or their flags in a permission account via MagicBlock’s Permission Program ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1.
+
+rust sdk code:
+use ephemeral_rollups_sdk::access_control::{
+    instructions::UpdatePermissionCpiBuilder,
+    structs::MembersArgs
+};
+
+// Update permission and modify members
+// Either authority or permissioned_account must sign based on AUTHORITY_FLAG
+UpdatePermissionCpiBuilder::new(&permission_program)
+    .authority(&payer, true)  // authority can sign if they have AUTHORITY_FLAG
+    .permissioned_account(&permissioned_account, true)  // or permissioned_account can sign
+    .permission(&permission)
+    // Setting members to None makes the permission public (temporarily visible)
+    // This is useful for transitional states during delegation/undeligation
+    .args(MembersArgs { members: None })
+    .invoke_signed(&[seed_refs.as_slice()])?;
+
+Use Cases:
+Add new members to a permission group
+Revoke permissions by removing members
+Change member flags to grant/restrict access
+Set members to None to make account temporarily visible
+
+4. Request
+When making requests to Private Ephemeral Rollup, you must first establish authorization:
+Private Ephemeral Rollup (devnet) endpoint: https://tee.magicblock.app?token= {authToken}. Replace {authToken} with your authorization token obtained from the TEE RPC to send requests.
+Authorization Steps:
+Verify TEE RPC Integrity: Verify the TEE RPC server runs on genuine Intel TDX hardware using its TDX quote and Intel-issued attestation certificates
+Request Authorization Token: Sign a challenge message to receive an authorization token
+Create Connection: Pass the authorization token inside header or as query parameter
+
+web3.js code:
+import {
+  verifyTeeRpcIntegrity,
+  getAuthToken,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
+import { Connection, Keypair } from "@solana/web3.js";
+import * as nacl from "tweetnacl";
+
+const teeUrl = "https://tee.magicblock.app";
+const teeWsUrl = "wss://tee.magicblock.app";
+
+// 1. Verify the integrity of TEE RPC
+const isVerified = await verifyTeeRpcIntegrity(teeUrl);
+
+// 2. Get AuthToken before making request to TEE
+const authToken = await getAuthToken(
+  teeUrl,
+  userKeypair.publicKey,
+  (message: Uint8Array) =>
+    Promise.resolve(nacl.sign.detached(message, userKeypair.secretKey))
+);
+
+// 3. Create connection with TEE
+const teeUserUrl = `${teeUrl}?token=${authToken.token}`;
+const teeUserWsUrl = `${teeWsUrl}?token=${authToken.token}`;
+
+const connection = new Connection(
+  teeUserUrl,
+  {
+    wsEndpoint: teeUserWsUrl,
+  }
+);
+
+Account Visibility:
+By default: All accounts are transparent and accessible to any authorized user
+With permissions: Once an account is permissioned through the permission system, access control rules are enforced during every request
+Only members with appropriate flags can access or modify permissioned accounts and transactions
+Key Points:
+Requests are executed in real-time on the validator
+Member flags determine what each user can do
+Permissions can be updated dynamically during execution
+Updates take effect immediately on the Private Ephemeral Rollup
+
+
+5. Commit & Undelegate
+The latest permission state on Private Ephemeral Rollup enforces access control. For closing permission account, update permission members before undelegating permission to Solana.
+
+rust sdk code:
+use ephemeral_rollups_sdk::access_control::{
+    instructions::CommitAndUndelegatePermissionCpiBuilder
+};
+
+CommitAndUndelegatePermissionCpiBuilder::new(&permission_program)
+    .authority(&payer, false)
+    .permissioned_account(&permissioned_account, true)
+    .permission(&permission)
+    .magic_program(&magic_program)
+    .magic_context(&magic_context)
+    .invoke_signed(&[seed_refs.as_slice()])?;
+
+6. Close
+Close a permissioned account and reclaim its lamports on Solana.
+
+rust sdk code:
+use ephemeral_rollups_sdk::access_control::{
+    instructions::ClosePermissionCpiBuilder
+};
+
+// Close the permission account and reclaim lamports
+// IMPORTANT: The permission must be undelegated to Solana first
+// If delegated, call commit_and_undelegate before closing
+ClosePermissionCpiBuilder::new(&permission_program)
+    .payer(&payer)  // Receives reclaimed lamports
+    .authority(&payer, false)  // Authority signer (has AUTHORITY_FLAG)
+    .permissioned_account(&permissioned_account, true)  // or permissioned_account can sign
+    .permission(&permission)  // The permission account to close
+    .invoke_signed(&[seed_refs.as_slice()])?;
+
+Use Cases:
+Clean up unused permission accounts
+Reclaim SOL from closed accounts
+Important:
+The permission must be undelegated to Solana first
+If delegated, call commit_and_undelegate before closing
+Lamports are returned to the payer
+
+Best Practices
+Authority Management: Always assign AUTHORITY_FLAG to at least one trusted member
+Least Privilege: Grant only necessary flags to each member
+Real-time Updates: Permissions can be updated in real-time on Private Ephemeral Rollup without undelegating, allowing dynamic access control adjustments
+Cleanup: Undelegate and close unused permission accounts to free SOL
+​
+Security Considerations
+Signer Validation: Only members with AUTHORITY_FLAG or program with permissioned account can authorize changes
+Public Accounts: Setting members to None makes the account publicly visible
+Access Auditing: Use member flags to audit and control access
+
+
+Reference Material
+Onchain Privacy
+The high-performance engine for real-time applications that require privacy and compliance on Solana
+
+​
+MagicBlock Private Ephemeral Rollup (PER)
+MagicBlock is bringing high-performance, general-purpose Trusted Execution Environments (TEEs) to Solana. We call this the Private Ephemeral Rollup (PER).
+By using the security guarantees of Intel Trust Domain Extension (TDX) architecture combined with MagicBlock’s Ephemeral Rollup (ER) technology, we’re making it possible to run sensitive logic inside of a hardware-secured environment, while inheriting the composability and speed of Solana.
+For the first time, builders can design applications that are simultaneously:
+Confidential: state is protected from all unauthorized parties
+Scalable: running inside an ER that can execute blocks at high throughput and low latency
+Composable: still able to interoperate with other Solana programs
+Compliant: easy-to-enforce compliance thanks to a fine-grained access control layer
+This enables use cases like confidential transfers, sealed-bid auctions, and secure identity flows on Solana.
+​
+Trusted Execution Environments on Intel TDX
+A trusted execution environment acts as a vault inside a CPU. Generally, when you run a program (e.g., a validator), the operating system can see and influence everything: the code, the state, and the memory. A TEE creates a hardware-secured space that prevents interference, even by the machine it’s running on.
+We use a TEE to protect the state of an Ephemeral Rollup. Normally, when you execute a smart contract onchain, every step of the process is visible: the program being called, the accounts, and the resulting state changes. Using the TEE, programs can selectively shield ER state.
+Every account is public by default, like in Solana
+Programs can explicitly define access rules for their accounts
+This means transfers, program calls, and interactions can avoid being broadcast publicly when desired.
+​
+Why TEE
+There are multiple privacy-preserving approaches used in blockchains. Each has different tradeoffs.
+Solution	What is it?	Pros	Cons
+Trusted Execution Environments	Hardware-secured execution within a CPU	Near-native performance, run normal code	Trust assumption in vendor hardware
+Fully Homomorphic Encryption	Compute directly on encrypted data	Data never decrypted	Extremely slow, specialized tooling, difficult key management, bugs and vulnerabilities
+Zero Knowledge Proofs	Prove something without revealing inputs	Efficient verification; strong for identity/compliance/correctness	Proving is heavy, bugs and vulnerabilities
+Multi-party Computation	Split a secret across multiple parties to compute jointly	Strong cryptographic guarantees	Coordination overhead, high latency, specialized tooling, bugs and vulnerabilities
+ZK: efficient verification, not optimized for general low-latency computation
+MPC: shared trust, higher latency and coordination
+FHE: powerful in theory, not ready for general usage today
+TEE: practical confidentiality with real-time performance and familiar developer UX on Solana
+​
+Application Unlocks
+Confidential Transfers: move assets privately without exposing balances or counterparties
+Sealed-Bid Auctions: keep bids hidden until settlement for fair price discovery
+Private Games: support games where revealing state undermines gameplay
+Enterprise and Compliance Flows: run sensitive operations with blockchain guarantees while keeping data private
+Identity-Based Access: verify group membership without revealing unnecessary account history
+Private Ephemeral Rollup (devnet) endpoint: https://tee.magicblock.app?token= {authToken}. Replace {authToken} with your authorization token obtained from the TEE RPC to send requests.
+
+
+Authorization
+Customize authorized access through onchain restrictions on account level for user groups.
+
+​
+Authorization Model
+
+Private Ephemeral Rollups use a Permission Program to manage fine-grained privacy controls for accounts and account groups. This runs on Solana L1 and can be updated on the fly.
+Permission Groups: Define groups with arbitrary membership and IDs via CPI. A group aggregates users and the accounts governed by its permissions.
+Permissions: Add permissions to groups. Today a permission implies read access for the delegated account; read/write splits may be added in the future.
+Access: Client access to permissioned ER state requires authenticating ownership of a specified public key. Successful authentication yields a token used to query the ER.
+Private Ephemeral Rollup (devnet) endpoint: https://tee.magicblock.app?token= {authToken}. Replace {authToken} with your authorization token obtained from the TEE RPC to send requests.
+This abstraction into groups lets you modify the permissions for many users/accounts atomically in a single transaction.
+
+Reference Material
+Compliance Framework
+MagicBlock enables confidential execution without compromising performance, compliance, or control.
+
+​
+Overview
+MagicBlock Private Ephemeral Rollups (PERs) enable confidential execution while enforcing account-level state access and regulatory-compliant controls. We believe in a form of privacy that is respectful of users’ rights and lawful. Private ERs are not open anonymity rails, but rather private environments with enforced boundaries that can be customized for specific use cases.
+​
+Built for Institutional Requirements: Performance, Compliance, and Control
+Businesses and institutions do not choose between performance, compliance, and control; they require all three. Systems that sacrifice performance for compliance are unusable at scale, while systems that optimize solely for speed or privacy without enforceable controls are incompatible with institutional mandates or the day-to-day operations of lawful businesses.
+MagicBlock’s Trusted Execution Environment (TEE) architecture is explicitly designed to satisfy these requirements simultaneously.
+Performance: Private ERs deliver low-latency, high-throughput execution suitable for real-time applications, market-sensitive workflows, and on-chain systems that cannot tolerate delayed or probabilistic settlement.
+Compliance: Jurisdictional enforcement, real-time AML and sanctions screening, and clear, upfront licensing ensure private execution operates within clearly defined legal and regulatory boundaries.
+Control: Access to private execution is conditional, configurable, and enforceable at the on-chain program level. Institutions retain control over who can connect and under what constraints assets may enter or exit.
+This approach allows institutions to unlock the benefits of confidential execution while preserving the guarantees they require to operate responsibly at scale.
+​
+Compliance Safeguards
+MagicBlock Private Ephemeral Rollup Compliance Flow
+Jurisdiction & Network Access Controls
+Private ER access is enforced at the infrastructure layer through node-level IP geofencing. Connections originating from OFAC-sanctioned or otherwise restricted jurisdictions are blocked at ingress, before any transaction is accepted or executed. These controls ensure jurisdictional restrictions are enforced deterministically and upstream of execution.
+Real-Time AML & Sanctions Screening
+All relevant interaction points with Private ERs are subject to continuous, real-time AML and sanctions screening via Range. This includes sanctions list verification, exposure and counterparty risk assessment, and behavioral risk signals. Transactions that fail screening are rejected or halted prior to execution or settlement, preventing tainted flows from entering or exiting the private environment.
+EULA & Licensed Deployments
+Private ER instances are operated under explicit licensing and policy constraints defined by MagicBlock Labs and, where applicable, its partners. Different licenses can be applied to different instances to ensure the open-source software we provide explicitly forbids illicit use cases or misuse of the technology for unwarranted transactions.
+MagicBlock Private ERs deliver confidential execution within clearly enforced legal and regulatory boundaries.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+how are you removing the cerate permision thing agaian and again whn i am telling you to implment it proelry.
+
+i want it to be fully privacy onchain not just ui level. implmenet it properly.
+I am giving you anchor rock paper sciisor code:
+use anchor_lang::prelude::*;
+use ephemeral_rollups_sdk::access_control::instructions::{
+    CreatePermissionCpiBuilder, UpdatePermissionCpiBuilder,
+};
+use ephemeral_rollups_sdk::access_control::structs::{Member, MembersArgs};
+use ephemeral_rollups_sdk::anchor::{commit, delegate, ephemeral};
+use ephemeral_rollups_sdk::consts::PERMISSION_PROGRAM_ID;
+use ephemeral_rollups_sdk::cpi::DelegateConfig;
+use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
+
+declare_id!("9SBBpJa9rd8DRP6tkcqnyad4LaCWWB3FgSFmZ2tFVhq");
+
+pub const PLAYER_CHOICE_SEED: &[u8] = b"player_choice";
+pub const GAME_SEED: &[u8] = b"game";
+
+#[ephemeral]
+#[program]
+pub mod anchor_rock_paper_scissor {
+
+    use super::*;
+
+    // 1️⃣ Create and auto-join as Player 1
+    pub fn create_game(ctx: Context<CreateGame>, game_id: u64) -> Result<()> {
+        let game = &mut ctx.accounts.game;
+        let player1 = ctx.accounts.player1.key();
+
+        game.game_id = game_id;
+        game.player1 = Some(player1);
+        game.player2 = None;
+        game.result = GameResult::None;
+
+        msg!("Game ID: {}", game_id);
+        msg!("Player 1 PDA: {}", player1);
+
+        // initialize PlayerChoice for player 1
+        let player_choice = &mut ctx.accounts.player_choice;
+        player_choice.game_id = game_id;
+        player_choice.player = player1;
+        player_choice.choice = None;
+
+        msg!("Game {} created and joined by {}", game_id, player1);
+
+        Ok(())
+    }
+
+    // 2️⃣ Player 2 joins the game
+    pub fn join_game(ctx: Context<JoinGame>, game_id: u64) -> Result<()> {
+        let game = &mut ctx.accounts.game;
+        let player = ctx.accounts.player.key();
+
+        require!(game.player1 != Some(player), GameError::CannotJoinOwnGame);
+        require!(game.player2.is_none(), GameError::GameFull);
+
+        game.player2 = Some(player);
+
+        // Create PlayerChoice PDA for player 2
+        let player_choice = &mut ctx.accounts.player_choice;
+        player_choice.game_id = game_id;
+        player_choice.player = player;
+        player_choice.choice = None;
+
+        msg!("{} joined Game {} as player 2", player, game_id);
+        Ok(())
+    }
+
+    // 3️⃣ Player makes a choice
+    pub fn make_choice(ctx: Context<MakeChoice>, _game_id: u64, choice: Choice) -> Result<()> {
+        let player_choice = &mut ctx.accounts.player_choice;
+        require!(player_choice.choice.is_none(), GameError::AlreadyChose);
+
+        player_choice.choice = choice.into();
+        msg!(
+            "Player {:?} made choice {:?}",
+            player_choice.player,
+            player_choice.choice
+        );
+
+        Ok(())
+    }
+
+    // 4️⃣ Reveal and record the winner
+    pub fn reveal_winner(ctx: Context<RevealWinner>) -> Result<()> {
+        let game = &mut ctx.accounts.game;
+        let player1_choice = &ctx.accounts.player1_choice;
+        let player2_choice = &ctx.accounts.player2_choice;
+        let permission_program = &ctx.accounts.permission_program.to_account_info();
+        let permission_game = &ctx.accounts.permission_game.to_account_info();
+        let permission1 = &ctx.accounts.permission1.to_account_info();
+        let permission2 = &ctx.accounts.permission2.to_account_info();
+        let magic_program = &ctx.accounts.magic_program.to_account_info();
+        let magic_context = &ctx.accounts.magic_context.to_account_info();
+
+        // 1️⃣ Clone choices into game
+        game.player1_choice = player1_choice.choice.clone().into();
+        game.player2_choice = player2_choice.choice.clone().into();
+
+        // 2️⃣ Ensure both players exist
+        let player1 = game.player1.ok_or(GameError::MissingOpponent)?;
+        let player2 = game.player2.ok_or(GameError::MissingOpponent)?;
+
+        // 3️⃣ Ensure both players made a choice
+        let choice1 = game
+            .player1_choice
+            .clone()
+            .ok_or(GameError::MissingChoice)?;
+        let choice2 = game
+            .player2_choice
+            .clone()
+            .ok_or(GameError::MissingChoice)?;
+
+        // 4️⃣ Determine winner based on choices
+        game.result = match (choice1, choice2) {
+            (Choice::Rock, Choice::Scissors)
+            | (Choice::Paper, Choice::Rock)
+            | (Choice::Scissors, Choice::Paper) => GameResult::Winner(player1),
+
+            (Choice::Rock, Choice::Paper)
+            | (Choice::Paper, Choice::Scissors)
+            | (Choice::Scissors, Choice::Rock) => GameResult::Winner(player2),
+
+            _ => GameResult::Tie,
+        };
+
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&game.to_account_info(), true)
+            .authority(&game.to_account_info(), false)
+            .permission(&permission_game.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[GAME_SEED, &game.game_id.to_le_bytes(), &[ctx.bumps.game]]])?;
+
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&player1_choice.to_account_info(), true)
+            .authority(&player1_choice.to_account_info(), false)
+            .permission(&permission1.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[
+                PLAYER_CHOICE_SEED,
+                &player1_choice.game_id.to_le_bytes(),
+                &player1_choice.player.as_ref(),
+                &[ctx.bumps.player1_choice],
+            ]])?;
+
+        UpdatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&player2_choice.to_account_info(), true)
+            .authority(&player2_choice.to_account_info(), false)
+            .permission(&permission2.to_account_info())
+            .args(MembersArgs { members: None })
+            .invoke_signed(&[&[
+                PLAYER_CHOICE_SEED,
+                &player2_choice.game_id.to_le_bytes(),
+                &player2_choice.player.as_ref(),
+                &[ctx.bumps.player2_choice],
+            ]])?;
+
+        msg!("Result: {:?}", &game.result);
+
+        game.exit(&crate::ID)?;
+
+        commit_and_undelegate_accounts(
+            &ctx.accounts.payer,
+            vec![&game.to_account_info()],
+            magic_context,
+            magic_program,
+        )?;
+
+        Ok(())
+    }
+
+    /// Delegate account to the delegation program based on account type
+    /// Set specific validator based on ER, see https://docs.magicblock.gg/pages/get-started/how-integrate-your-program/local-setup
+    pub fn delegate_pda(ctx: Context<DelegatePda>, account_type: AccountType) -> Result<()> {
+        let seed_data = derive_seeds_from_account_type(&account_type);
+        let seeds_refs: Vec<&[u8]> = seed_data.iter().map(|s| s.as_slice()).collect();
+
+        let validator = ctx.accounts.validator.as_ref().map(|v| v.key());
+        ctx.accounts.delegate_pda(
+            &ctx.accounts.payer,
+            &seeds_refs,
+            DelegateConfig {
+                validator,
+                ..Default::default()
+            },
+        )?;
+        Ok(())
+    }
+
+    /// Creates a permission based on account type input.
+    /// Derives the bump from the account type and seeds, then calls the permission program.
+    pub fn create_permission(
+        ctx: Context<CreatePermission>,
+        account_type: AccountType,
+        members: Option<Vec<Member>>,
+    ) -> Result<()> {
+        let CreatePermission {
+            permissioned_account,
+            permission,
+            payer,
+            permission_program,
+            system_program,
+        } = ctx.accounts;
+
+        let seed_data = derive_seeds_from_account_type(&account_type);
+
+        let (_, bump) = Pubkey::find_program_address(
+            &seed_data.iter().map(|s| s.as_slice()).collect::<Vec<_>>(),
+            &crate::ID,
+        );
+
+        let mut seeds = seed_data.clone();
+        seeds.push(vec![bump]);
+        let seed_refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
+
+        CreatePermissionCpiBuilder::new(&permission_program)
+            .permissioned_account(&permissioned_account.to_account_info())
+            .permission(&permission)
+            .payer(&payer)
+            .system_program(&system_program)
+            .args(MembersArgs { members })
+            .invoke_signed(&[seed_refs.as_slice()])?;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+#[instruction(game_id: u64)]
+pub struct CreateGame<'info> {
+    #[account(
+        init_if_needed,
+        payer = player1,
+        space = 8 + Game::LEN,
+        seeds = [GAME_SEED, &game_id.to_le_bytes()],
+        bump
+    )]
+    pub game: Account<'info, Game>,
+
+    #[account(
+        init_if_needed,
+        payer = player1,
+        space = 8 + PlayerChoice::LEN,
+        seeds = [PLAYER_CHOICE_SEED, &game_id.to_le_bytes(), player1.key().as_ref()],
+        bump
+    )]
+    pub player_choice: Account<'info, PlayerChoice>,
+
+    #[account(mut)]
+    pub player1: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(game_id: u64)]
+pub struct JoinGame<'info> {
+    #[account(
+        mut,
+        seeds = [GAME_SEED, &game_id.to_le_bytes()],
+        bump
+    )]
+    pub game: Account<'info, Game>,
+
+    #[account(
+        init_if_needed,
+        payer = player,
+        space = 8 + PlayerChoice::LEN,
+        seeds = [PLAYER_CHOICE_SEED, &game_id.to_le_bytes(), player.key().as_ref()],
+        bump
+    )]
+    pub player_choice: Account<'info, PlayerChoice>,
+
+    #[account(mut)]
+    pub player: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(game_id: u64)]
+pub struct MakeChoice<'info> {
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game_id.to_le_bytes(), player.key().as_ref()],
+        bump
+    )]
+    pub player_choice: Account<'info, PlayerChoice>,
+
+    #[account(mut)]
+    pub player: Signer<'info>,
+}
+
+#[commit]
+#[derive(Accounts)]
+pub struct RevealWinner<'info> {
+    #[account(mut, seeds = [GAME_SEED, &game.game_id.to_le_bytes()], bump)]
+    pub game: Account<'info, Game>,
+
+    /// Player1's choice PDA (derived automatically)
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game.game_id.to_le_bytes(), game.player1.unwrap().as_ref()],
+        bump
+    )]
+    pub player1_choice: Account<'info, PlayerChoice>,
+
+    /// Player2's choice PDA (derived automatically)
+    #[account(
+        mut,
+        seeds = [PLAYER_CHOICE_SEED, &game.game_id.to_le_bytes(), game.player2.unwrap().as_ref()],
+        bump
+    )]
+    pub player2_choice: Account<'info, PlayerChoice>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission_game: UncheckedAccount<'info>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission1: UncheckedAccount<'info>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission2: UncheckedAccount<'info>,
+    /// Anyone can trigger this
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: PERMISSION PROGRAM
+    #[account(address = PERMISSION_PROGRAM_ID)]
+    pub permission_program: UncheckedAccount<'info>,
+}
+
+/// Unified delegate PDA context
+#[delegate]
+#[derive(Accounts)]
+pub struct DelegatePda<'info> {
+    /// CHECK: The PDA to delegate
+    #[account(mut, del)]
+    pub pda: AccountInfo<'info>,
+    pub payer: Signer<'info>,
+    /// CHECK: Checked by the delegate program
+    pub validator: Option<AccountInfo<'info>>,
+}
+
+#[derive(Accounts)]
+pub struct CreatePermission<'info> {
+    /// CHECK: Validated via permission program CPI
+    pub permissioned_account: UncheckedAccount<'info>,
+    /// CHECK: Checked by the permission program
+    #[account(mut)]
+    pub permission: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// CHECK: PERMISSION PROGRAM
+    #[account(address = PERMISSION_PROGRAM_ID)]
+    pub permission_program: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+pub struct Game {
+    pub game_id: u64,
+    pub player1: Option<Pubkey>,
+    pub player2: Option<Pubkey>,
+    pub player1_choice: Option<Choice>,
+    pub player2_choice: Option<Choice>,
+    pub result: GameResult,
+}
+impl Game {
+    pub const LEN: usize = 8                // game_id
+        + (32 + 1) * 2                       // player1, player2
+        + (1 + 1) * 2                        // player1_choice, player2_choice
+        + (1 + 32); // result (1 byte tag + 32 bytes pubkey for Winner variant)
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
+pub enum GameResult {
+    Winner(Pubkey),
+    Tie,
+    None,
+}
+
+#[account]
+pub struct PlayerChoice {
+    pub game_id: u64,
+    pub player: Pubkey,
+    pub choice: Option<Choice>,
+}
+impl PlayerChoice {
+    pub const LEN: usize = 8 + 8 + 32 + 2;
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, Debug)]
+pub enum Choice {
+    Rock,
+    Paper,
+    Scissors,
+}
+
+#[error_code]
+pub enum GameError {
+    #[msg("You already made your choice.")]
+    AlreadyChose,
+    #[msg("You cannot join your own game.")]
+    CannotJoinOwnGame,
+    #[msg("Both players must make a choice first.")]
+    MissingChoice,
+    #[msg("Opponent not found.")]
+    MissingOpponent,
+    #[msg("Game is already full.")]
+    GameFull,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub enum AccountType {
+    Game { game_id: u64 },
+    PlayerChoice { game_id: u64, player: Pubkey },
+}
+
+fn derive_seeds_from_account_type(account_type: &AccountType) -> Vec<Vec<u8>> {
+    match account_type {
+        AccountType::Game { game_id } => {
+            vec![GAME_SEED.to_vec(), game_id.to_le_bytes().to_vec()]
+        }
+        AccountType::PlayerChoice { game_id, player } => {
+            vec![
+                PLAYER_CHOICE_SEED.to_vec(),
+                game_id.to_le_bytes().to_vec(),
+                player.to_bytes().to_vec(),
+            ]
+        }
+    }
+}
+
+
+and these are tests code for rock paper scissor code above::
+import * as anchor from "@coral-xyz/anchor";
+import { sendAndConfirmTransaction } from "@solana/web3.js";
+import { Program } from "@coral-xyz/anchor";
+import { AnchorRockPaperScissor } from "../target/types/anchor_rock_paper_scissor";
+import BN from "bn.js";
+import * as nacl from 'tweetnacl';
+
+import {
+  permissionPdaFromAccount,
+  getAuthToken,
+  getPermissionStatus,
+  waitUntilPermissionActive,
+  AUTHORITY_FLAG,
+  Member,
+  createDelegatePermissionInstruction,
+  TX_LOGS_FLAG,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
+
+
+describe("anchor-rock-paper-scissor", () => {
+  // Configure the client
+  let provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+
+  let program = anchor.workspace
+    .AnchorRockPaperScissor as Program<AnchorRockPaperScissor>;
+  console.log("Program ID: ", program.programId.toString());
+
+
+  const ER_VALIDATOR = new anchor.web3.PublicKey("FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA"); // TEE ER Validator
+  const player1 = provider.wallet.payer;
+  const player2 = anchor.web3.Keypair.generate();
+
+  const teeUrl = "https://tee.magicblock.app"
+  const teeWsUrl = "wss://tee.magicblock.app"
+  const ephemeralRpcEndpoint = (process.env.EPHEMERAL_PROVIDER_ENDPOINT || teeUrl).replace(/\/$/, "");
+  const providerEphemeralRollup = new anchor.AnchorProvider(
+    new anchor.web3.Connection(
+      ephemeralRpcEndpoint,
+      {
+        wsEndpoint:
+          process.env.EPHEMERAL_WS_ENDPOINT || teeWsUrl,
+      },
+    ),
+    anchor.Wallet.local(),
+  );
+  console.log("Base Layer Connection: ", provider.connection.rpcEndpoint);
+  console.log(
+    "Ephemeral Rollup Connection: ",
+    providerEphemeralRollup.connection.rpcEndpoint,
+  );
+
+  // Random game ID (u64)
+  const gameId = new BN(Date.now());
+  console.log("Game ID (u64):", gameId.toString());
+
+  // PDA seeds
+  const GAME_SEED = Buffer.from("game");
+  const PLAYER_CHOICE_SEED = Buffer.from("player_choice");
+
+  // Derived PDAs
+  let [gamePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [GAME_SEED, gameId.toArrayLike(Buffer, "le", 8)],
+      program.programId
+    );
+  let [player1ChoicePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [PLAYER_CHOICE_SEED, gameId.toArrayLike(Buffer, "le", 8), player1.publicKey.toBuffer()],
+      program.programId
+    );
+  let [player2ChoicePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [PLAYER_CHOICE_SEED, gameId.toArrayLike(Buffer, "le", 8), player2.publicKey.toBuffer()],
+      program.programId
+    );
+
+  const permissionForGame = permissionPdaFromAccount(gamePda);
+  const permissionForPlayer1Choice = permissionPdaFromAccount(player1ChoicePda);
+  const permissionForPlayer2Choice = permissionPdaFromAccount(player2ChoicePda);
+
+  console.log("Game PDA:", gamePda.toBase58());
+  console.log("Player1:", player1.publicKey.toBase58());
+  console.log("Player1 Choice PDA:", player1ChoicePda.toBase58());
+  console.log("Player2:", player2.publicKey.toBase58());
+  console.log("Player2Choice PDA:", player2ChoicePda.toBase58());
+  console.log("Permission PDA for Game:", permissionForGame.toString());
+  console.log("Permission PDA for Player1 Choice:", permissionForPlayer1Choice.toString());
+  console.log("Permission PDA for Player2 Choice:", permissionForPlayer2Choice.toString());
+
+
+
+  // Permission TEE AuthToken
+  let authTokenPlayer1: { token: string; expiresAt: number };
+  let authTokenPlayer2: { token: string; expiresAt: number };
+  let providerTeePlayer1
+  let providerTeePlayer2
+
+  it("Airdrop SOL to Player 2", async () => {
+      const tx = new anchor.web3.Transaction().add(
+              anchor.web3.SystemProgram.transfer({
+              fromPubkey: player1.publicKey,
+              toPubkey: player2.publicKey,
+              lamports: 0.05 * anchor.web3.LAMPORTS_PER_SOL, // send 0.05 SOL
+              })
+          );
+
+      await provider.sendAndConfirm(tx, [player1]); // player1 is wallet
+      const balance1 = await provider.connection.getBalance(player1.publicKey)
+      const balance2 = await provider.connection.getBalance(player2.publicKey);
+      console.log("💸 Player 1 Balance:", balance1 / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+      console.log("💸 Player 2 Balance:", balance2 / anchor.web3.LAMPORTS_PER_SOL, "SOL");
+
+      // Get Auth Tokens if using TEE
+        if (ephemeralRpcEndpoint.includes("tee")) {
+            authTokenPlayer1 = await getAuthToken(ephemeralRpcEndpoint, player1.publicKey, (message: Uint8Array) => Promise.resolve(nacl.sign.detached(message, player1.secretKey)));
+            console.log("Player 1 Explorer URL:", `https://solscan.io/?cluster=custom&customUrl=${teeUrl}?token=${authTokenPlayer1.token}`);
+            authTokenPlayer2 = await getAuthToken(ephemeralRpcEndpoint, player2.publicKey, (message: Uint8Array) => Promise.resolve(nacl.sign.detached(message, player2.secretKey)));
+            console.log("Player 2 Explorer URL:", `https://solscan.io/?cluster=custom&customUrl=${teeUrl}?token=${authTokenPlayer2.token}`);
+          providerTeePlayer1 = new anchor.AnchorProvider(
+            new anchor.web3.Connection(
+              process.env.EPHEMERAL_PROVIDER_ENDPOINT ||
+                `${teeUrl}?token=${authTokenPlayer1.token}`,
+              {
+                wsEndpoint:
+                  process.env.EPHEMERAL_WS_ENDPOINT || `${teeWsUrl}?token=${authTokenPlayer1.token}`,
+              },
+            ),
+            anchor.Wallet.local(),
+          );
+          providerTeePlayer2 = new anchor.AnchorProvider(
+            new anchor.web3.Connection(
+              process.env.EPHEMERAL_PROVIDER_ENDPOINT ||
+                `${teeUrl}?token=${authTokenPlayer2.token}`,
+              {
+                wsEndpoint:
+                  process.env.EPHEMERAL_WS_ENDPOINT || `${teeWsUrl}?token=${authTokenPlayer2.token}`,
+              },
+            ),
+            anchor.Wallet.local(),
+          );
+      }
+  });
+
+  it("Create Game by Player 1", async () => {
+
+    const createGameIx = await program.methods
+      .createGame(gameId)
+      .accounts({
+        //@ts-ignore
+        game: gamePda,
+        playerChoice: player1ChoicePda,
+        player1: player1.publicKey,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .instruction();
+
+    // Create and delegate permission for game account
+    const permissionForGame = permissionPdaFromAccount(gamePda);
+    let membersForGame : Member[] | null = [ 
+      {
+        flags: AUTHORITY_FLAG | TX_LOGS_FLAG,
+        pubkey: player1.publicKey
+      },
+      {
+        flags: AUTHORITY_FLAG | TX_LOGS_FLAG,
+        pubkey: player2.publicKey
+      }
+    ]
+    const createGamePermissionIx = await program.methods
+      .createPermission(
+        { game: { gameId } },
+        membersForGame 
+      )
+      .accountsPartial({
+        payer: player1.publicKey,
+        permissionedAccount: gamePda,
+        permission: permissionForGame,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .instruction();
+    
+    const delegatePermissionGame = createDelegatePermissionInstruction({
+      payer: player1.publicKey,
+      validator: ER_VALIDATOR,
+      permissionedAccount: [gamePda, false],
+      authority: [player1.publicKey, true],
+    })
+    
+
+    // Create permission group and permission for player choice account
+    let members : Member[] | null = [ 
+      {
+        flags: AUTHORITY_FLAG | TX_LOGS_FLAG,
+        pubkey: player1.publicKey
+      }
+    ]
+    const createPlayer1ChoicePermissionIx = await program.methods
+      .createPermission(
+        { playerChoice: { gameId, player: player1.publicKey } },
+        members
+      )
+      .accountsPartial({
+        payer: player1.publicKey,
+        permissionedAccount: player1ChoicePda,
+        permission: permissionForPlayer1Choice,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .instruction();
+    const delegatePermission1 = createDelegatePermissionInstruction({
+      payer: player1.publicKey,
+      validator: ER_VALIDATOR,
+      permissionedAccount: [player1ChoicePda, false],
+      authority: [player1.publicKey, true],
+    })
+
+    const delegatePlayerChoice1Ix = await program.methods
+        .delegatePda({ playerChoice: { gameId, player: player1.publicKey } })
+        .accounts({
+            payer: player1.publicKey,
+            validator: ER_VALIDATOR,
+            pda: player1ChoicePda,
+        })
+        .instruction();
+
+    let tx = new anchor.web3.Transaction().add(
+      createGameIx,
+      createGamePermissionIx,
+      delegatePermissionGame,
+      createPlayer1ChoicePermissionIx,
+      delegatePermission1,
+      delegatePlayerChoice1Ix
+    );
+    tx.feePayer = provider.wallet.publicKey;
+    const txHash = await sendAndConfirmTransaction(provider.connection, tx, [provider.wallet.payer], {
+      skipPreflight: true,
+      commitment: "confirmed",
+    });
+    console.log("✅ Game Created:", txHash);
+
+    const result = await waitUntilPermissionActive(ephemeralRpcEndpoint, player1ChoicePda);
+    if (result) {
+      console.log("✅ Player 1 Choice permission active:", player1ChoicePda.toBase58(), txHash);
+    } else {
+      console.log("❌ Player 1 Choice permission not active:", player1ChoicePda.toBase58());
+    }
+  });
+
+  it("Join Game (Player 2)", async () => {
+
+    const joinGameIx =  await program.methods
+        .joinGame(gameId)
+        .accounts({
+            //@ts-ignore
+            game: gamePda,
+            playerChoice: player2ChoicePda,
+            player: player2.publicKey,
+            systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .instruction();
+
+    // Create permission group and permission for player choice account
+    let members : Member[] | null = [ 
+      {
+        flags: AUTHORITY_FLAG | TX_LOGS_FLAG,
+        pubkey: player2.publicKey
+      }
+    ]
+    const createPlayer2ChoicePermissionIx = await program.methods
+      .createPermission(
+        { playerChoice: { gameId, player: player2.publicKey } },
+        members
+      )
+      .accountsPartial({
+        payer: player2.publicKey,
+        permissionedAccount: player2ChoicePda,
+        permission: permissionForPlayer2Choice,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .instruction();
+
+    const delegatePermission2 = createDelegatePermissionInstruction({
+      payer: player2.publicKey,
+      validator: ER_VALIDATOR,
+      permissionedAccount: [player2ChoicePda, false],
+      authority: [player2.publicKey, true],
+    })
+    
+    const delegateGameIx = await program.methods
+        .delegatePda({ game: { gameId } })
+        .accounts({
+            payer: player2.publicKey,
+            validator: ER_VALIDATOR,
+            pda: gamePda,
+        })
+        .instruction()
+
+    const delegatePlayerChoice2Ix = await program.methods
+        .delegatePda({ playerChoice: { gameId, player: player2.publicKey } })
+        .accounts({
+            payer: player2.publicKey,
+            validator: ER_VALIDATOR,
+            pda: player2ChoicePda,
+        })
+        .instruction()
+
+    let tx = new anchor.web3.Transaction().add(
+        joinGameIx,
+        createPlayer2ChoicePermissionIx,
+        delegatePermission2,
+        delegateGameIx,
+        delegatePlayerChoice2Ix
+    );
+
+    tx.feePayer = player2.publicKey;
+    const txHash = await sendAndConfirmTransaction(provider.connection, tx, [player2], {
+      skipPreflight: true,
+      commitment: "confirmed",
+    });
+
+    console.log(`✅ Player 2 joined game ${gameId}: ${txHash}`);
+
+    const player2ChoiceResult = await waitUntilPermissionActive(ephemeralRpcEndpoint, player2ChoicePda);
+    if (player2ChoiceResult) {
+      console.log("✅ Player 2 Choice permission active:", player2ChoicePda.toBase58(), txHash);
+    } else {
+      console.log("❌ Player 2 Choice permission not active:", player2ChoicePda.toBase58());
+    }
+  });
+
+  it("Player 1 Makes Choice", async () => {
+    const choice = getRandomChoice();
+    const makeChoice1Ix = await program.methods
+      .makeChoice(gameId, choice) 
+      .accounts({
+        // @ts-ignore
+        playerChoice: player1ChoicePda,
+        player: player1.publicKey,
+      })
+      .instruction();
+
+    let tx = new anchor.web3.Transaction().add(
+      makeChoice1Ix
+    );
+
+    tx.feePayer = player1.publicKey;
+    tx.recentBlockhash = (
+      await providerTeePlayer1.connection.getLatestBlockhash())
+    .blockhash;
+    const txHash = await sendAndConfirmTransaction(providerTeePlayer1.connection, tx, [player1], {
+      skipPreflight: true,
+      commitment: "confirmed",
+    });
+
+    console.log(`✅ Player 1 ${player1.publicKey} chose ${JSON.stringify(choice)}: ${txHash}`);
+  });
+
+  it("Player 2 Makes Choice", async () => {
+    const choice = getRandomChoice();
+    const makeChoice2Ix = await program.methods
+      .makeChoice(gameId, choice) 
+      .accounts({
+        // @ts-ignore
+        playerChoice: player2ChoicePda,
+        player: player2.publicKey,
+      })
+      .instruction();
+
+    let tx = new anchor.web3.Transaction().add(
+      makeChoice2Ix
+    );
+
+    tx.feePayer = player2.publicKey;
+    const txHash = await sendAndConfirmTransaction(providerTeePlayer2.connection, tx, [player2], {
+      skipPreflight: true,
+      commitment: "confirmed",
+    });
+
+    console.log(`✅ Player 2 ${player2.publicKey} chose ${JSON.stringify(choice)}: ${txHash}`);
+  });
+
+  it("Player 1 checks own choice", async () => {
+    const accountInfo = await providerTeePlayer1.connection.getAccountInfo(player1ChoicePda);
+    const player1ChoiceData = accountInfo.data;
+    const player1ChoiceAccount = program.account.playerChoice.coder.accounts.decode("playerChoice", player1ChoiceData);
+    console.log(`👀 Check Player 1 own Choice:`, player1ChoiceAccount.choice);
+  });
+
+    it("Player 2 check own choice", async () => {
+    const accountInfo = await providerTeePlayer2.connection.getAccountInfo(player2ChoicePda);
+    const player2ChoiceData = accountInfo.data;
+    const player2ChoiceAccount = program.account.playerChoice.coder.accounts.decode("playerChoice", player2ChoiceData);
+    console.log(`👀 Check Player 2 own Choice:`, player2ChoiceAccount.choice);
+  });
+
+  it("Sneak Player 1 Choice"  , async () => {
+    await getPermissionStatus(ephemeralRpcEndpoint, player1ChoicePda)
+    const accountInfo = await providerTeePlayer2.connection.getAccountInfo(player1ChoicePda);
+    if (accountInfo === null) {
+      console.log(`✅ Player 1 choice account not found — as expected.`);
+      return; // test passes
+    }
+    // You can optionally fail if account *shouldn't* exist:
+    throw new Error("❌ Player 1 choice account exists unexpectedly!");
+  });
+
+  it("Sneak Player 2 Choice"  , async () => {
+    await getPermissionStatus(ephemeralRpcEndpoint, player2ChoicePda)
+    const accountInfo = await providerTeePlayer1.connection.getAccountInfo(player2ChoicePda);
+    // Assert that accountInfo is null (account not found)
+    if (accountInfo === null) {
+      console.log("✅ Player 2 choice account not found — as expected.");
+      return; // test passes
+    }
+    // You can optionally fail if account *shouldn't* exist:
+    throw new Error("❌ Player 2 choice account exists unexpectedly!");
+  });
+
+  it("Reveal Winner", async () => {
+    let tx = await program.methods
+      .revealWinner()
+      .accounts({
+        //@ts-ignore
+        game: gamePda,
+        player1Choice: player1ChoicePda,
+        player2Choice: player2ChoicePda,
+        permissionGame: permissionForGame,
+        permission1: permissionForPlayer1Choice,
+        permission2: permissionForPlayer2Choice,
+        payer: player1.publicKey,
+      })
+      .transaction();
+    tx.feePayer = player1.publicKey;
+    const txHash = await sendAndConfirmTransaction(providerTeePlayer1.connection, tx, [player1], {
+      skipPreflight: true,
+      commitment: "confirmed"
+    });
+    console.log("✅ Reveal Winner TX Sent:", txHash);
+    // const txBase = await GetCommitmentSignature(txHash, providerTeePlayer1.connection)
+    // console.log("✅ Winner Revealed:", txBase)
+
+    const accountInfo = await providerTeePlayer1.connection.getAccountInfo(gamePda);
+    const gameAccount = program.coder.accounts.decode("game", accountInfo.data);
+    console.log("🎲 Game Result Account Data:", gameAccount);
+
+  })
+
+});
+
+
+type Choice = { rock: {}; } | { paper: {}; } | { scissors: {}; };
+
+function getRandomChoice(): Choice {
+  const random = Math.floor(Math.random() * 3);
+  switch (random) {
+    case 0: return { rock: {} };
+    case 1: return { paper: {} };
+    case 2: return { scissors: {} };
+    default: throw new Error("Invalid random value");
+  }
+}
+
+and this is read,e file of it:
+# Anchor Rock Paper Scissor
+
+A confidential Rock Paper Scissor game built on Solana using Anchor and MagicBlock's Ephemeral Rollups SDK. This example demonstrates how to implement a two-player game with hidden choices that remain private during gameplay until the winner is revealed.
+
+## Overview
+
+This project showcases:
+- **Solana Smart Contract**: Built with Anchor framework
+- **Confidentiality**: Player choices are hidden using MagicBlock's Ephemeral Rollups
+- **On-chain Game Logic**: Automated winner determination with transparent results
+- **Permission System**: Fine-grained access control via the ephemeral rollups SDK
+
+## Versioning
+
+The following software packages may be required, other versions may also be compatible:
+
+| Software | Version | Installation Guide |
+|----------|---------|-------------------|
+| Solana | 2.3.13 | [Install Solana](https://docs.solana.com/cli/install-solana-cli-tools) |
+| Rust | 1.85.0 | [Install Rust](https://www.rust-lang.org/tools/install) |
+| Anchor | 0.32.1 | [Install Anchor](https://www.anchor-lang.com/docs/installation) |
+| Node | 24.10.0 | [Install Node](https://nodejs.org/) |
+
+## Prerequisites
+
+- **Rust**: 1.85.0
+- **Node.js**: 24.10.0
+- **Solana CLI**: 2.3.13
+- **Anchor CLI**: 0.32.1
+- **Yarn**: Package manager (or npm)
+
+### Installation
+
+1. Install Rust:
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+2. Install Solana CLI:
+```bash
+sh -c "$(curl -sSfL https://release.solana.com/v1.18.0/install)"
+```
+
+3. Install Anchor:
+```bash
+cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+avm install latest
+avm use latest
+```
+
+4. Configure Solana (optional, for devnet):
+```bash
+solana config set --url devnet
+```
+
+## Project Structure
+
+```
+anchor-rock-paper-scissor/
+├── programs/
+│   └── anchor-rock-paper-scissor/
+│       ├── src/
+│       │   └── lib.rs                 # Program logic
+│       └── Cargo.toml
+├── tests/
+│   └── anchor-rock-paper-scissor.ts   # Test suite
+├── Anchor.toml                        # Anchor configuration
+├── Cargo.toml                         # Workspace configuration
+└── package.json                       # Node dependencies
+```
+
+## Build
+
+Build the Solana program:
+
+```bash
+anchor build
+```
+
+This will:
+- Compile the Rust program
+- Generate TypeScript IDL (Interface Definition Language)
+- Output artifacts to the `target/` directory
+
+## Deployment
+
+### Deploy to Devnet
+
+1. Set your wallet (if not already configured):
+```bash
+solana config set --keypair ~/.config/solana/id.json
+```
+
+2. Update `Anchor.toml` with your program ID (after first deployment)
+
+3. Deploy:
+```bash
+anchor deploy --provider.cluster devnet
+```
+
+The deployment will output your program ID. Update `Anchor.toml` and redeploy with the correct ID.
+
+### Deploy to Localnet
+
+Start a local Solana validator:
+```bash
+solana-test-validator
+```
+
+In another terminal, deploy:
+```bash
+anchor deploy --provider.cluster localnet
+```
+
+## Testing
+
+### Install Dependencies
+
+```bash
+yarn install
+```
+
+### Run Tests
+
+Run the full test suite:
+
+```bash
+yarn test
+```
+
+The test suite includes:
+1. **Airdrop SOL** - Fund test players
+2. **Create Game** - Player 1 initiates a game
+3. **Join Game** - Player 2 joins the game
+4. **Make Choices** - Both players privately make their choices
+5. **Verify Privacy** - Confirm choices remain hidden from opponent
+6. **Reveal Winner** - Determine and announce the game winner
+
+### Custom Test Endpoint
+
+To test against a custom ephemeral rollup endpoint:
+
+```bash
+EPHEMERAL_PROVIDER_ENDPOINT=http://your-endpoint:port \
+EPHEMERAL_WS_ENDPOINT=ws://your-endpoint:port \
+yarn test
+```
+
+## Usage
+
+### Game Flow
+
+1. **Player 1 creates a game** with a unique game ID
+2. **Player 2 joins** the same game
+3. **Both players make hidden choices** (Rock, Paper, or Scissors)
+4. **Choices are encrypted** in the ephemeral rollup
+5. **Winner is revealed** - game logic determines the winner
+6. **Results are finalized** on-chain
+
+### Example Test Output
+
+```
+Program ID: <program-address>
+Game ID (u64): 1706309545000
+...
+✅ Game Created: <tx-hash>
+✅ Player 2 joined game <id>: <tx-hash>
+✅ Player 1 chose {"rock":{}}: <tx-hash>
+✅ Player 2 chose {"paper":{}}: <tx-hash>
+✅ Reveal Winner TX Sent: <tx-hash>
+🎲 Game Result Account Data: {winner: 2, player1Choice: {...}, player2Choice: {...}}
+```
+
+## Key Concepts
+
+### Ephemeral Rollups
+
+Player choices are processed in MagicBlock's Ephemeral Rollups, which provides:
+- **TEE Execution**: Encrypted execution environment
+- **Privacy**: Other players cannot see choices until revealed
+- **Finality**: Results are committed to Solana mainnet
+
+### Program Accounts
+
+- **Game Account**: Stores game state and result
+- **PlayerChoice Account**: Stores a player's encrypted choice (PDAs)
+- **Permission Account**: Controls access to encrypted data
+
+### Anchor Instructions
+
+- `create_game` - Initialize a new game
+- `join_game` - Add the second player
+- `make_choice` - Submit encrypted choice
+- `create_permission` - Setup access control
+- `delegate_pda` - Delegate PDA to TEE validator
+- `reveal_winner` - Compute and store result
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `EPHEMERAL_PROVIDER_ENDPOINT` | `https://tee.magicblock.app` | Ephemeral rollup RPC endpoint |
+| `EPHEMERAL_WS_ENDPOINT` | `wss://tee.magicblock.app` | WebSocket endpoint for subscriptions |
+
+## Troubleshooting
+
+### Build Errors
+
+**Error: "anchor-lang not found"**
+- Run: `cargo update`
+- Ensure Rust is up to date: `rustup update`
+
+### Deployment Issues
+
+**Error: "Account does not have enough SOL"**
+- Airdrop SOL: `solana airdrop 10 <your-address> --url devnet`
+
+### Test Failures
+
+**Tests timeout or fail to connect**
+- Verify the ephemeral endpoint is reachable
+- Check your internet connection
+- Ensure the Solana cluster is available
+
+**Permission denied errors**
+- Ensure wallet has sufficient SOL for transaction fees
+- Check permission setup in test (game and choice PDAs)
+
+## Development
+
+### Modify Program Logic
+
+Edit `programs/anchor-rock-paper-scissor/src/lib.rs`:
+
+1. Update instruction handlers
+2. Run `anchor build` to compile
+3. Run `yarn test` to validate changes
+
+### Generate New Types
+
+After program changes:
+```bash
+anchor build --skip-lint
+```
+
+This regenerates TypeScript types in `target/types/`.
+
+## References
+
+- [Anchor Documentation](https://www.anchor-lang.com/)
+- [Solana Documentation](https://docs.solana.com/)
+- [MagicBlock Ephemeral Rollups SDK](https://github.com/magicblock-labs/ephemeral-rollups-sdk)
+- [Solana Web3.js](https://github.com/solana-labs/solana-web3.js)
+
+## License
+
+MIT
+
+## Support
+
+For issues or questions:
+1. Check existing GitHub issues
+2. Review test logs for error details
+3. Ensure all prerequisites are installed
+4. Verify network connectivity to Solana endpoints
+
+just implement in the same this rock paper scissor has been done for our poker game also. dont assumen things on your owne. it should be just how this rock paper game has beedn implement. do it carefully

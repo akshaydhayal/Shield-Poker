@@ -10,7 +10,7 @@ use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 // VRF SDK temporarily disabled - using client-side random seed for now
 // TODO: Re-enable VRF when SDK compatibility is resolved
 
-declare_id!("8aX9U5f1GMVXcwTy2z8ycTZc4fXxAMZyZbGkuC8Gjm2E");
+declare_id!("AcyjLBZMjeaBrnxZLin61r3n5GHkdobyHwWygpJsBATv");
 
 // MagicBlock Program IDs (PERMISSION_PROGRAM_ID is imported from SDK)
 use anchor_lang::solana_program::pubkey;
@@ -291,6 +291,10 @@ pub mod private_poker {
         game.big_blind = buy_in / 20; // 5% of buy-in (equal to small blind)
         game.deck_seed = [0u8; 32];
         game.last_action_ts = Clock::get()?.unix_timestamp;
+        game.winner = None;
+        // Public committed amounts (visible to both players)
+        game.player1_committed = 0;
+        game.player2_committed = 0;
 
         // Transfer buy-in to vault
         let cpi_context = CpiContext::new(
@@ -380,6 +384,10 @@ pub mod private_poker {
 
         // Set pot to blinds (small blind + big blind)
         game.pot_amount = game.small_blind + game.big_blind;
+        
+        // Update PUBLIC committed amounts in Game (both players can see these)
+        game.player1_committed = game.small_blind;
+        game.player2_committed = game.big_blind;
 
         msg!("Player {} joined game {}", player2, game_id);
 
@@ -613,6 +621,13 @@ pub mod private_poker {
                 
                 player_state.chips_committed = new_chips_committed;
                 game.pot_amount += call_amount;
+                
+                // Update PUBLIC committed amount (visible to both players)
+                if is_player1 {
+                    game.player1_committed = new_chips_committed;
+                } else {
+                    game.player2_committed = new_chips_committed;
+                }
 
                 // No wallet transfer - money is already in vault from buy-in
                 msg!("Player {} called {} (from buy-in)", player, call_amount);
@@ -627,6 +642,13 @@ pub mod private_poker {
                 
                 player_state.chips_committed = new_chips_committed;
                 game.pot_amount += bet_amount;
+                
+                // Update PUBLIC committed amount (visible to both players)
+                if is_player1 {
+                    game.player1_committed = new_chips_committed;
+                } else {
+                    game.player2_committed = new_chips_committed;
+                }
 
                 // No wallet transfer - money is already in vault from buy-in
                 msg!("Player {} bet {} (from buy-in)", player, bet_amount);
@@ -902,14 +924,16 @@ pub mod private_poker {
         Ok(())
     }
 
-    /// Resolve game and determine winner
-    pub fn resolve_game(ctx: Context<ResolveGame>, _winner: Pubkey) -> Result<()> {
+    /// Commit game state from TEE and determine winner
+    /// This runs on TEE to finalize the game outcome
+    /// The game_vault (which was never delegated) can transfer SOL on L1
+    pub fn commit_game(ctx: Context<CommitGame>) -> Result<()> {
         let game = &mut ctx.accounts.game;
         let player1_state = &ctx.accounts.player1_state;
         let player2_state = &ctx.accounts.player2_state;
 
         require!(
-            game.phase == GamePhase::Showdown || game.phase == GamePhase::Finished,
+            game.phase == GamePhase::Showdown,
             PokerError::InvalidGamePhase
         );
 
@@ -920,32 +944,51 @@ pub mod private_poker {
             game.player1.ok_or(PokerError::MissingOpponent)?
         } else {
             // Both players still in - compare hands
-            // Winner should already be set in Showdown phase, but recalculate to be sure
-            if let Some(winner) = game.winner {
-                winner
+            let p1_hand = player1_state.hand;
+            let p2_hand = player2_state.hand;
+            let board = game.board_cards;
+            
+            let p1_eval = evaluate_best_hand(p1_hand, board);
+            let p2_eval = evaluate_best_hand(p2_hand, board);
+            
+            if p1_eval.compare(&p2_eval) == std::cmp::Ordering::Greater {
+                game.player1.ok_or(PokerError::MissingOpponent)?
+            } else if p2_eval.compare(&p1_eval) == std::cmp::Ordering::Greater {
+                game.player2.ok_or(PokerError::MissingOpponent)?
             } else {
-                // Calculate winner from hands
-                let p1_hand = player1_state.hand;
-                let p2_hand = player2_state.hand;
-                let board = game.board_cards;
-                
-                let p1_eval = evaluate_best_hand(p1_hand, board);
-                let p2_eval = evaluate_best_hand(p2_hand, board);
-                
-                if p1_eval.compare(&p2_eval) == std::cmp::Ordering::Greater {
-                    game.player1.ok_or(PokerError::MissingOpponent)?
-                } else if p2_eval.compare(&p1_eval) == std::cmp::Ordering::Greater {
-                    game.player2.ok_or(PokerError::MissingOpponent)?
-                } else {
-                    // Tie - player 1 wins by default
-                    game.player1.ok_or(PokerError::MissingOpponent)?
-                }
+                // Tie - player 1 wins by default
+                game.player1.ok_or(PokerError::MissingOpponent)?
             }
         };
 
-        let game_id = game.game_id;
+        // Set winner and mark for resolution
+        game.winner = Some(actual_winner);
+        game.phase = GamePhase::Finished;
+
+        // Store final state info for L1 claim
+        // Note: accounts stay delegated, but winner info is set
+        msg!("Game {} outcome determined. Winner: {}", game.game_id, actual_winner);
+        msg!("Pot amount: {} lamports", game.pot_amount);
+        msg!("Player1 committed: {} lamports", player1_state.chips_committed);
+        msg!("Player2 committed: {} lamports", player2_state.chips_committed);
+
+        Ok(())
+    }
+
+    /// Resolve game and transfer SOL to winner/players
+    /// This runs on L1 - amounts are passed as args since delegated accounts can't be read on L1
+    /// Call AFTER commit_game has determined the winner on TEE
+    pub fn resolve_game(
+        ctx: Context<ResolveGame>, 
+        game_id: u64,
+        winner: Pubkey,
+        pot_amount: u64,
+        p1_unused: u64,
+        p2_unused: u64,
+    ) -> Result<()> {
+        // The game_vault is NOT delegated, so we can transfer from it on L1
+        // We trust the client to pass correct amounts (read from TEE state)
         
-        // PDA seeds for the vault
         let seeds = &[
             GAME_VAULT_SEED,
             &game_id.to_le_bytes(),
@@ -953,25 +996,20 @@ pub mod private_poker {
         ];
         let signer_seeds = &[&seeds[..]];
 
-        // Calculate unused buy-in for each player
-        let p1_unused = game.buy_in.saturating_sub(player1_state.chips_committed);
-        let p2_unused = game.buy_in.saturating_sub(player2_state.chips_committed);
-        
-        // Pot amount = total bets (chips_committed by both players)
-        let pot_amount = game.pot_amount;
-
-        // 1. Transfer pot to winner (only the amount that was bet)
-        anchor_lang::system_program::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.system_program.to_account_info(),
-                anchor_lang::system_program::Transfer {
-                    from: ctx.accounts.game_vault.to_account_info(),
-                    to: ctx.accounts.winner.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            pot_amount,
-        )?;
+        // 1. Transfer pot to winner
+        if pot_amount > 0 {
+            anchor_lang::system_program::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.system_program.to_account_info(),
+                    anchor_lang::system_program::Transfer {
+                        from: ctx.accounts.game_vault.to_account_info(),
+                        to: ctx.accounts.winner.to_account_info(),
+                    },
+                    signer_seeds,
+                ),
+                pot_amount,
+            )?;
+        }
 
         // 2. Return unused buy-in to player 1
         if p1_unused > 0 {
@@ -1003,22 +1041,15 @@ pub mod private_poker {
             )?;
         }
 
-        game.phase = GamePhase::Finished;
-        game.winner = Some(actual_winner);
-
-        msg!("Game {} resolved. Winner: {} received pot: {} SOL. Player1 unused: {} SOL returned. Player2 unused: {} SOL returned.", 
-             game.game_id, actual_winner, pot_amount, p1_unused, p2_unused);
-
-        // Note: MagicBlock commit_and_undelegate_accounts removed due to CPI privilege issues
-        // For MVP, we're skipping the commit/undelegate step
-        // In production, you would need to properly configure magic_program and magic_context
-        // and ensure all accounts are properly delegated to PER before the game starts
+        msg!("Game {} resolved. Winner: {} received pot: {} lamports. Player1 unused: {} lamports. Player2 unused: {} lamports.", 
+             game_id, winner, pot_amount, p1_unused, p2_unused);
 
         Ok(())
     }
 
-    /// Creates a permission based on account type input.
-    /// Derives the bump from the account type and seeds, then calls the permission program.
+    /// Creates a permission for an account
+    /// The permission PDA is derived by the Permission Program itself
+    /// We only need to sign with the permissioned account's authority (which is a PDA)
     pub fn create_permission(
         ctx: Context<CreatePermission>,
         account_type: AccountType,
@@ -1032,8 +1063,8 @@ pub mod private_poker {
             system_program,
         } = ctx.accounts;
 
+        // Derive seeds for the permissioned account (so we can sign as its authority)
         let seed_data = derive_seeds_from_account_type(&account_type);
-
         let (_, bump) = Pubkey::find_program_address(
             &seed_data.iter().map(|s| s.as_slice()).collect::<Vec<_>>(),
             &crate::ID,
@@ -1043,6 +1074,8 @@ pub mod private_poker {
         seeds.push(vec![bump]);
         let seed_refs: Vec<&[u8]> = seeds.iter().map(|s| s.as_slice()).collect();
 
+        // Call Permission Program's create_permission
+        // The permissioned_account (our PDA) acts as the authority
         CreatePermissionCpiBuilder::new(&permission_program)
             .permissioned_account(&permissioned_account.to_account_info())
             .permission(&permission)
@@ -1090,6 +1123,9 @@ pub struct Game {
     pub deck_seed: [u8; 32],  // VRF seed for deck
     pub last_action_ts: i64,
     pub winner: Option<Pubkey>,
+    // Store committed amounts in Game (public) so both players can see them
+    pub player1_committed: u64,
+    pub player2_committed: u64,
 }
 
 impl Game {
@@ -1106,7 +1142,9 @@ impl Game {
         + 5 // board_cards
         + 32 // deck_seed
         + 8 // last_action_ts
-        + (1 + 32); // winner
+        + (1 + 32) // winner
+        + 8 // player1_committed
+        + 8; // player2_committed
 }
 
 #[account]
@@ -1290,14 +1328,10 @@ pub struct PlayerAction<'info> {
     )]
     pub player2_state: Account<'info, PlayerState>,
 
-    /// CHECK: Vault PDA
-    #[account(
-        mut,
-        seeds = [GAME_VAULT_SEED, &game_id.to_le_bytes()],
-        bump
-    )]
-    pub game_vault: UncheckedAccount<'info>,
-
+    // Note: game_vault is NOT mutable here - player actions don't transfer lamports
+    // Money was already deposited during join_game. This just tracks chips_committed.
+    // Removing mut allows TEE transactions to work without delegating the vault.
+    
     #[account(mut)]
     pub player: Signer<'info>,
 
@@ -1331,8 +1365,10 @@ pub struct AdvancePhase<'info> {
     pub payer: Signer<'info>,
 }
 
+/// CommitGame - runs on TEE to determine winner
+/// This just sets the winner and pot info - no undelegation needed
 #[derive(Accounts)]
-pub struct ResolveGame<'info> {
+pub struct CommitGame<'info> {
     #[account(
         mut,
         seeds = [GAME_SEED, &game.game_id.to_le_bytes()],
@@ -1354,10 +1390,22 @@ pub struct ResolveGame<'info> {
     )]
     pub player2_state: Account<'info, PlayerState>,
 
-    /// CHECK: Vault PDA
+    #[account(mut)]
+    pub payer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+/// ResolveGame - runs on L1 to transfer SOL from vault
+/// The vault was never delegated, so L1 can access it
+/// Amounts are passed as args (read from TEE by client)
+#[derive(Accounts)]
+#[instruction(game_id: u64)]
+pub struct ResolveGame<'info> {
+    /// CHECK: Vault PDA (NOT delegated, so L1 can access it)
     #[account(
         mut,
-        seeds = [GAME_VAULT_SEED, &game.game_id.to_le_bytes()],
+        seeds = [GAME_VAULT_SEED, &game_id.to_le_bytes()],
         bump
     )]
     pub game_vault: UncheckedAccount<'info>,

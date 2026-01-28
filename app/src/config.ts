@@ -2,7 +2,7 @@ import { PublicKey } from "@solana/web3.js";
 
 // Program ID (update after deployment)
 export const PROGRAM_ID = new PublicKey(
-  "8aX9U5f1GMVXcwTy2z8ycTZc4fXxAMZyZbGkuC8Gjm2E"
+  "AcyjLBZMjeaBrnxZLin61r3n5GHkdobyHwWygpJsBATv"
 );
 
 // MagicBlock Program IDs
@@ -13,6 +13,9 @@ export const PERMISSION_PROGRAM_ID = new PublicKey(
 export const DELEGATION_PROGRAM_ID = new PublicKey(
   "DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh"
 );
+
+// NOTE: buffer_pda is derived using PROGRAM_ID (the poker program), NOT a separate buffer program
+// The #[delegate] macro in MagicBlock uses the owner program for buffer derivation
 
 // Network configuration
 export const NETWORK = "devnet";

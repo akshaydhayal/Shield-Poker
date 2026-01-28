@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-private_poker = "8aX9U5f1GMVXcwTy2z8ycTZc4fXxAMZyZbGkuC8Gjm2E"
+private_poker = "AcyjLBZMjeaBrnxZLin61r3n5GHkdobyHwWygpJsBATv"
 
 [registry]
 url = "https://api.apr.dev"

@@ -1,5 +1,5 @@
 {
-  "address": "8aX9U5f1GMVXcwTy2z8ycTZc4fXxAMZyZbGkuC8Gjm2E",
+  "address": "AcyjLBZMjeaBrnxZLin61r3n5GHkdobyHwWygpJsBATv",
   "metadata": {
     "name": "private_poker",
     "version": "0.1.0",
@@ -125,10 +125,133 @@
       ]
     },
     {
+      "name": "commit_game",
+      "docs": [
+        "Commit game state from TEE and determine winner",
+        "This runs on TEE to finalize the game outcome",
+        "The game_vault (which was never delegated) can transfer SOL on L1"
+      ],
+      "discriminator": [
+        212,
+        148,
+        56,
+        92,
+        60,
+        28,
+        179,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "game",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.game_id",
+                "account": "Game"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player1_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.game_id",
+                "account": "Game"
+              },
+              {
+                "kind": "account",
+                "path": "game.player1",
+                "account": "Game"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player2_state",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "game.game_id",
+                "account": "Game"
+              },
+              {
+                "kind": "account",
+                "path": "game.player2",
+                "account": "Game"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "create_permission",
       "docs": [
-        "Creates a permission based on account type input.",
-        "Derives the bump from the account type and seeds, then calls the permission program."
+        "Creates a permission for an account",
+        "The permission PDA is derived by the Permission Program itself",
+        "We only need to sign with the permissioned account's authority (which is a PDA)"
       ],
       "discriminator": [
         190,
@@ -225,38 +348,38 @@
             "program": {
               "kind": "const",
               "value": [
-                112,
-                152,
-                15,
-                180,
-                219,
-                12,
-                83,
-                103,
-                162,
-                88,
-                157,
-                252,
-                179,
-                72,
+                142,
                 240,
-                133,
-                242,
-                225,
-                198,
-                145,
-                150,
-                125,
-                64,
-                98,
-                20,
-                23,
-                152,
-                101,
-                127,
+                167,
+                193,
+                13,
+                11,
                 173,
+                252,
+                230,
+                172,
+                81,
+                132,
+                87,
+                87,
+                148,
+                212,
+                167,
+                29,
+                212,
+                80,
+                78,
+                46,
+                82,
+                66,
+                142,
+                4,
+                191,
+                153,
+                203,
                 40,
-                23
+                255,
+                237
               ]
             }
           }
@@ -346,7 +469,7 @@
         },
         {
           "name": "owner_program",
-          "address": "8aX9U5f1GMVXcwTy2z8ycTZc4fXxAMZyZbGkuC8Gjm2E"
+          "address": "AcyjLBZMjeaBrnxZLin61r3n5GHkdobyHwWygpJsBATv"
         },
         {
           "name": "delegation_program",
@@ -714,33 +837,6 @@
           }
         },
         {
-          "name": "game_vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  97,
-                  109,
-                  101,
-                  95,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              },
-              {
-                "kind": "arg",
-                "path": "game_id"
-              }
-            ]
-          }
-        },
-        {
           "name": "player",
           "writable": true,
           "signer": true
@@ -774,7 +870,9 @@
     {
       "name": "resolve_game",
       "docs": [
-        "Resolve game and determine winner"
+        "Resolve game and transfer SOL to winner/players",
+        "This runs on L1 - amounts are passed as args since delegated accounts can't be read on L1",
+        "Call AFTER commit_game has determined the winner on TEE"
       ],
       "discriminator": [
         25,
@@ -787,98 +885,6 @@
         79
       ],
       "accounts": [
-        {
-          "name": "game",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  97,
-                  109,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "game.game_id",
-                "account": "Game"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player1_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  115,
-                  116,
-                  97,
-                  116,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "game.game_id",
-                "account": "Game"
-              },
-              {
-                "kind": "account",
-                "path": "game.player1",
-                "account": "Game"
-              }
-            ]
-          }
-        },
-        {
-          "name": "player2_state",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  108,
-                  97,
-                  121,
-                  101,
-                  114,
-                  95,
-                  115,
-                  116,
-                  97,
-                  116,
-                  101
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "game.game_id",
-                "account": "Game"
-              },
-              {
-                "kind": "account",
-                "path": "game.player2",
-                "account": "Game"
-              }
-            ]
-          }
-        },
         {
           "name": "game_vault",
           "writable": true,
@@ -900,9 +906,8 @@
                 ]
               },
               {
-                "kind": "account",
-                "path": "game.game_id",
-                "account": "Game"
+                "kind": "arg",
+                "path": "game_id"
               }
             ]
           }
@@ -931,8 +936,24 @@
       ],
       "args": [
         {
-          "name": "_winner",
+          "name": "game_id",
+          "type": "u64"
+        },
+        {
+          "name": "winner",
           "type": "pubkey"
+        },
+        {
+          "name": "pot_amount",
+          "type": "u64"
+        },
+        {
+          "name": "p1_unused",
+          "type": "u64"
+        },
+        {
+          "name": "p2_unused",
+          "type": "u64"
         }
       ]
     },
@@ -1312,6 +1333,14 @@
             "type": {
               "option": "pubkey"
             }
+          },
+          {
+            "name": "player1_committed",
+            "type": "u64"
+          },
+          {
+            "name": "player2_committed",
+            "type": "u64"
           }
         ]
       }

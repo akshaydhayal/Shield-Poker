@@ -51,10 +51,19 @@ export default function GamePage() {
           return signed;
         },
       };
+      // Create client with regular connection (TEE will be added after authorization)
       const client = new PokerClient(connection, wallet as any);
       setPokerClient(client);
     }
   }, [connection, publicKey, signMessage, signTransaction, signAllTransactions]);
+
+  // Update PokerClient when TEE connection is available
+  useEffect(() => {
+    if (pokerClient && teeConnection) {
+      pokerClient.setTeeConnection(teeConnection);
+      console.log("TEE connection enabled - transactions will use ephemeral rollups");
+    }
+  }, [pokerClient, teeConnection]);
 
   const handleAuthorize = async () => {
     if (!publicKey || !signMessage) {
@@ -62,8 +71,17 @@ export default function GamePage() {
       return;
     }
 
+    // CRITICAL: Don't authorize TEE until BOTH players have joined!
+    // Otherwise delegation causes ownership conflicts and Player 2 can't join
+    if (!gameState?.player2) {
+      setError("⚠️ Both players must join BEFORE authorizing TEE!\n\nPlease wait for Player 2 to join the game first.");
+      return;
+    }
+
     try {
       setLoading(true);
+      setError(null);
+      console.log("Authorizing TEE access for ephemeral rollups...");
       const token = await authorizeTee(
         publicKey,
         async (message: Uint8Array) => {
@@ -74,8 +92,32 @@ export default function GamePage() {
       setAuthToken(token.token);
       const teeConn = createTeeConnection(token.token);
       setTeeConnection(teeConn);
+      
+      // Update PokerClient with TEE connection
+      if (pokerClient) {
+        pokerClient.setTeeConnection(teeConn);
+        console.log("✅ TEE connection enabled - all transactions will use fast ephemeral rollups");
+        
+        // Now that TEE is authorized AND both players joined, setup delegation
+        if (gameState && gameState.player1 && gameState.player2) {
+          console.log("🔐 Setting up delegation for game accounts...");
+          try {
+            await pokerClient.setupGamePermissions(
+              gameId,
+              gameState.player1,
+              gameState.player2
+            );
+            console.log("✅ Game accounts delegated to TEE");
+          } catch (err: any) {
+            console.warn("⚠️ Delegation setup warning:", err.message);
+            // Don't set error - delegation might already be done
+          }
+        }
+      }
+      
       setError(null);
     } catch (err: any) {
+      console.error("TEE authorization error:", err);
       setError(err.message || "Authorization failed");
     } finally {
       setLoading(false);
@@ -136,15 +178,28 @@ export default function GamePage() {
       return;
     }
 
+    // Warn if TEE not authorized (but still allow action)
+    if (!teeConnection) {
+      console.warn("⚠️ TEE not authorized - transaction will use regular Solana (slower). Consider authorizing TEE for fast ephemeral rollup execution.");
+    }
+
     try {
       setLoading(true);
+      setError(null);
       const amountLamports = amountSol ? amountSol * LAMPORTS_PER_SOL : undefined;
       const tx = await pokerClient.playerAction(gameId, action, amountLamports);
       console.log("Action executed:", tx);
       await fetchGameState();
-      setError(null);
     } catch (err: any) {
-      setError(err.message || "Failed to execute action");
+      console.error("Player action error:", err);
+      // Provide user-friendly error messages
+      let errorMessage = err.message || "Failed to execute action";
+      if (errorMessage.includes("TEE service") || errorMessage.includes("502") || errorMessage.includes("Failed to fetch")) {
+        errorMessage = "⚠️ TEE service is temporarily busy. Please wait a few seconds and try again.";
+      } else if (errorMessage.includes("insufficient")) {
+        errorMessage = "Insufficient funds for this action";
+      }
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -156,13 +211,71 @@ export default function GamePage() {
       return;
     }
 
+    // Warn if TEE not authorized
+    if (!teeConnection) {
+      console.warn("⚠️ TEE not authorized - transaction will use regular Solana (slower). Consider authorizing TEE for fast ephemeral rollup execution.");
+    }
+
     try {
       setLoading(true);
       console.log("Generating random seed and requesting card shuffle...");
       const tx = await pokerClient.shuffleAndDealCards(gameId);
       console.log("Cards shuffled and dealt:", tx);
+      
+      // Wait for TEE transaction to be processed
+      // TEE transactions are fast but we still need to wait for state to update
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await fetchGameState();
+      
+      // Fetch state multiple times to ensure we get the updated state
+      let attempts = 0;
+      const maxAttempts = 10; // Increased attempts
+      let cardsDealt = false;
+      
+      while (attempts < maxAttempts && !cardsDealt) {
+        // Fetch fresh game state first
+        const freshGameState = await pokerClient.getGame(gameId);
+        if (freshGameState) {
+          setGameState(freshGameState);
+          
+          // Fetch player states directly to check if cards were dealt
+          if (freshGameState.player1 && freshGameState.player2) {
+            try {
+              const [p1State, p2State] = await Promise.all([
+                pokerClient.getPlayerState(gameId, freshGameState.player1),
+                pokerClient.getPlayerState(gameId, freshGameState.player2),
+              ]);
+              
+              console.log(`Attempt ${attempts + 1}: Player 1 hand:`, p1State?.hand, "Player 2 hand:", p2State?.hand);
+              
+              // Check if cards were actually dealt
+              if (p1State?.hand && p1State.hand.some(c => c > 0) && 
+                  p2State?.hand && p2State.hand.some(c => c > 0)) {
+                console.log("✅ Cards successfully dealt and state updated");
+                setPlayer1State(p1State);
+                setPlayer2State(p2State);
+                cardsDealt = true;
+                break;
+              }
+            } catch (err) {
+              console.warn(`Error fetching player states on attempt ${attempts + 1}:`, err);
+            }
+          }
+        }
+        
+        attempts++;
+        if (!cardsDealt) {
+          await new Promise(resolve => setTimeout(resolve, 1500)); // Wait 1.5s between attempts
+        }
+      }
+      
+      if (!cardsDealt) {
+        console.error("❌ Cards were not dealt after multiple attempts. Transaction may have failed or state is not updating.");
+        setError("Cards were not dealt. Please refresh the page and check the transaction.");
+      } else {
+        // Also fetch game state one more time to ensure everything is in sync
+        await fetchGameState();
+      }
+      
       setError(null);
     } catch (err: any) {
       console.error("Error dealing cards:", err);
@@ -179,19 +292,41 @@ export default function GamePage() {
       const state = await pokerClient.getGame(gameId);
       setGameState(state);
       
-      if (state && state.player1 && state.player2) {
-        const [p1State, p2State] = await Promise.all([
-          pokerClient.getPlayerState(gameId, state.player1),
-          pokerClient.getPlayerState(gameId, state.player2),
-        ]);
-        setPlayer1State(p1State);
-        setPlayer2State(p2State);
+      if (state && state.player1 && state.player2 && publicKey) {
+        // With TEE privacy, each player can mainly see their own state
+        // Try to fetch both, but don't fail if opponent's state is unavailable
+        const isPlayer1 = state.player1.equals(publicKey);
+        const isPlayer2 = state.player2.equals(publicKey);
+        
+        try {
+          // Always try to fetch player 1 state
+          const p1State = await pokerClient.getPlayerState(gameId, state.player1);
+          setPlayer1State(p1State);
+          if (isPlayer1 && p1State?.hand && p1State.hand.some(c => c > 0)) {
+            console.log("✅ Player1 cards fetched:", p1State.hand);
+          }
+        } catch (e) {
+          // Expected with privacy - opponent's state may not be accessible
+          if (isPlayer1) console.error("Error fetching own state:", e);
+        }
+        
+        try {
+          // Always try to fetch player 2 state
+          const p2State = await pokerClient.getPlayerState(gameId, state.player2);
+          setPlayer2State(p2State);
+          if (isPlayer2 && p2State?.hand && p2State.hand.some(c => c > 0)) {
+            console.log("✅ Player2 cards fetched:", p2State.hand);
+          }
+        } catch (e) {
+          // Expected with privacy - opponent's state may not be accessible
+          if (isPlayer2) console.error("Error fetching own state:", e);
+        }
       } else {
         setPlayer1State(null);
         setPlayer2State(null);
       }
     } catch (err) {
-      if (err instanceof Error && !err.message.includes("Account does not exist")) {
+      if (err instanceof Error && !err.message.includes("Account does not exist") && !err.message.includes("Failed to fetch")) {
         console.error("Error fetching game state:", err);
       }
     }
@@ -226,6 +361,16 @@ export default function GamePage() {
     }
   }, [pokerClient, gameId]);
 
+  // Auto-authorize TEE when wallet connects and game is active
+  useEffect(() => {
+    if (connected && publicKey && signMessage && !authToken && !loading && gameState && gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished) {
+      // Auto-authorize TEE for active games
+      handleAuthorize().catch(err => {
+        console.log("Auto-authorization failed, user can authorize manually:", err);
+      });
+    }
+  }, [connected, publicKey, signMessage, authToken, loading, gameState?.phase]);
+
   // Helper to get player display name
   const getPlayerName = (playerPubkey: PublicKey | null | undefined) => {
     if (!playerPubkey) return "Waiting...";
@@ -244,25 +389,28 @@ export default function GamePage() {
   const isPlayer2Turn = gameState?.currentTurn && gameState.player2 && gameState.currentTurn.equals(gameState.player2);
 
   // Helper to get remaining buy-in for current player
+  // Uses PUBLIC committed amounts from gameState (visible to both players)
   const getRemainingBuyIn = () => {
     if (!gameState || !publicKey) return 0;
     const isPlayer1 = gameState.player1?.equals(publicKey);
     const isPlayer2 = gameState.player2?.equals(publicKey);
     
-    if (isPlayer1 && player1State) {
-      return (gameState.buyIn - player1State.chipsCommitted) / LAMPORTS_PER_SOL;
-    } else if (isPlayer2 && player2State) {
-      return (gameState.buyIn - player2State.chipsCommitted) / LAMPORTS_PER_SOL;
+    if (isPlayer1) {
+      return (gameState.buyIn - gameState.player1Committed) / LAMPORTS_PER_SOL;
+    } else if (isPlayer2) {
+      return (gameState.buyIn - gameState.player2Committed) / LAMPORTS_PER_SOL;
     }
     return 0;
   };
 
   // Helper to calculate call amount (amount needed to call from current player's perspective)
+  // Uses PUBLIC committed amounts from gameState (visible to both players)
   const getCallAmount = () => {
-    if (!player1State || !player2State || !gameState?.currentTurn) return 0;
+    if (!gameState?.currentTurn) return 0;
     
-    const p1Chips = player1State.chipsCommitted || 0;
-    const p2Chips = player2State.chipsCommitted || 0;
+    // Use PUBLIC committed amounts from Game (visible to both players)
+    const p1Chips = gameState.player1Committed || 0;
+    const p2Chips = gameState.player2Committed || 0;
     
     // Check whose turn it is
     const isPlayer1Turn = gameState.currentTurn.equals(gameState.player1!);
@@ -280,9 +428,10 @@ export default function GamePage() {
   };
 
   // Helper to check if chips are equal (required for Check)
+  // Uses PUBLIC committed amounts from gameState
   const areChipsEqual = () => {
-    if (!player1State || !player2State) return false;
-    return (player1State.chipsCommitted || 0) === (player2State.chipsCommitted || 0);
+    if (!gameState) return false;
+    return (gameState.player1Committed || 0) === (gameState.player2Committed || 0);
   };
 
   const remainingBuyIn = getRemainingBuyIn();
@@ -449,11 +598,11 @@ export default function GamePage() {
                   </div>
                   <div className="bg-yellow-500/20 rounded px-1 py-0.5 mb-0.5">
                     <p className="text-yellow-300 font-bold text-[10px] sm:text-xs">
-                      {(player1State?.chipsCommitted || 0) / LAMPORTS_PER_SOL} SOL
+                      Bet: {(gameState.player1Committed || 0) / LAMPORTS_PER_SOL} SOL
                     </p>
                   </div>
                   <p className="text-white/70 text-[9px] sm:text-[10px]">
-                    Chips: {((gameState.buyIn - (player1State?.chipsCommitted || 0)) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                    Chips: {((gameState.buyIn - (gameState.player1Committed || 0)) / LAMPORTS_PER_SOL).toFixed(4)} SOL
                   </p>
                   {/* Player 1 Hand */}
                   {player1State?.hand && player1State.hand.some(c => c > 0) && (
@@ -520,11 +669,11 @@ export default function GamePage() {
                   </div>
                   <div className="bg-yellow-500/20 rounded px-1 py-0.5 mb-0.5">
                     <p className="text-yellow-300 font-bold text-[10px] sm:text-xs">
-                      {(player2State?.chipsCommitted || 0) / LAMPORTS_PER_SOL} SOL
+                      Bet: {(gameState.player2Committed || 0) / LAMPORTS_PER_SOL} SOL
                     </p>
                   </div>
                   <p className="text-white/70 text-[9px] sm:text-[10px]">
-                    Chips: {((gameState.buyIn - (player2State?.chipsCommitted || 0)) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                    Chips: {((gameState.buyIn - (gameState.player2Committed || 0)) / LAMPORTS_PER_SOL).toFixed(4)} SOL
                   </p>
                   {/* Player 2 Hand */}
                   {player2State?.hand && player2State.hand.some(c => c > 0) && (
@@ -572,9 +721,21 @@ export default function GamePage() {
               </div>
             )}
 
-            {/* Deal Cards Button */}
-            {gameState.phase === GamePhase.PreFlop && 
-             (!player1State?.hand || player1State.hand.every(c => c === 0)) && (
+            {/* Deal Cards Button - Show only if current player hasn't received cards yet */}
+            {gameState.phase === GamePhase.PreFlop && (() => {
+              // With TEE privacy, each player can only see their own cards
+              // Check if the CURRENT player has cards (not both players)
+              const isPlayer1 = publicKey && gameState.player1?.equals(publicKey);
+              const isPlayer2 = publicKey && gameState.player2?.equals(publicKey);
+              
+              // Current player's state
+              const myState = isPlayer1 ? player1State : isPlayer2 ? player2State : null;
+              
+              // Show button if current player doesn't have cards yet
+              const needsCards = !myState?.hand || myState.hand.every(c => c === 0);
+              
+              return needsCards;
+            })() && (
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-purple-500/90 rounded-lg p-6 text-center backdrop-blur-sm">
                 <h3 className="text-white font-bold text-lg mb-4">🃏 Shuffle & Deal Cards</h3>
                 <button
@@ -637,17 +798,15 @@ export default function GamePage() {
                 <p className="text-yellow-200 text-sm mb-2 font-semibold">
                   Pot Distributed: {(gameState.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL
                 </p>
-                {player1State && player2State && (
-                  <div className="mt-3 pt-3 border-t border-green-400/50">
-                    <p className="text-yellow-200 text-xs font-semibold mb-1">Unused Buy-in Returned:</p>
-                    <p className="text-white text-xs font-medium">
-                      Player 1: {((gameState.buyIn - player1State.chipsCommitted) / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                    </p>
-                    <p className="text-white text-xs font-medium">
-                      Player 2: {((gameState.buyIn - player2State.chipsCommitted) / LAMPORTS_PER_SOL).toFixed(4)} SOL
-                    </p>
-                  </div>
-                )}
+                <div className="mt-3 pt-3 border-t border-green-400/50">
+                  <p className="text-yellow-200 text-xs font-semibold mb-1">Unused Buy-in Returned:</p>
+                  <p className="text-white text-xs font-medium">
+                    Player 1: {((gameState.buyIn - (gameState.player1Committed || 0)) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                  </p>
+                  <p className="text-white text-xs font-medium">
+                    Player 2: {((gameState.buyIn - (gameState.player2Committed || 0)) / LAMPORTS_PER_SOL).toFixed(4)} SOL
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -816,14 +975,29 @@ export default function GamePage() {
 
       {/* TEE Authorization - Top Right Corner */}
       {connected && !authToken && (
-        <div className="fixed top-20 right-4 z-50 bg-blue-500/90 rounded-lg p-4 backdrop-blur-sm">
+        <div className="fixed top-20 right-4 z-50 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-4 backdrop-blur-sm border-2 border-blue-400 shadow-lg">
+          <div className="text-white text-sm font-semibold mb-2">
+            ⚡ Enable Fast Transactions
+          </div>
+          <p className="text-white/80 text-xs mb-3">
+            Authorize TEE to use MagicBlock ephemeral rollups for instant execution
+          </p>
           <button
             onClick={handleAuthorize}
             disabled={loading}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 text-sm"
+            className="bg-white hover:bg-gray-100 text-blue-600 font-bold py-2 px-4 rounded disabled:opacity-50 text-sm w-full transition-colors"
           >
             {loading ? "Authorizing..." : "🔐 Authorize TEE"}
           </button>
+        </div>
+      )}
+      {/* TEE Status Indicator */}
+      {connected && authToken && teeConnection && (
+        <div className="fixed top-20 right-4 z-50 bg-green-500/90 rounded-lg p-2 backdrop-blur-sm border-2 border-green-400 shadow-lg">
+          <div className="text-white text-xs font-semibold flex items-center gap-2">
+            <span className="animate-pulse">⚡</span>
+            <span>TEE Active - Fast Mode</span>
+          </div>
         </div>
       )}
     </main>
