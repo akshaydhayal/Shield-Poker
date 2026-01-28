@@ -1,7 +1,7 @@
 {
   "name": "private-poker",
   "version": "0.1.0",
-  "description": "Private Poker Game on Solana with MagicBlock PER",
+  "description": "Shield Poker - Privacy-preserving poker game on Solana with MagicBlock PER",
   "scripts": {
     "build": "anchor build",
     "deploy": "anchor deploy",

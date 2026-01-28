@@ -1,6 +1,6 @@
-# Private Poker on Solana with MagicBlock PER
+# Shield Poker on Solana with MagicBlock PER
 
-A privacy-preserving poker game built on Solana using MagicBlock's Private Ephemeral Rollups (PER) for confidential game state and real-time execution.
+Shield Poker is a privacy-preserving poker game built on Solana using MagicBlock's Private Ephemeral Rollups (PER) for confidential game state and real-time execution.
 
 ## 🎯 Project Overview
 

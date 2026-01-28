@@ -18,6 +18,7 @@ export default function Home() {
   const [allGames, setAllGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchingGames, setFetchingGames] = useState(true); // Track initial fetch
   const [error, setError] = useState<string | null>(null);
   const [showCreateGameModal, setShowCreateGameModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"live" | "completed">("live");
@@ -80,6 +81,8 @@ export default function Home() {
     try {
       if (isRefresh) {
         setRefreshing(true);
+      } else {
+        setFetchingGames(true); // Set loading state for initial fetch
       }
       console.log("Fetching all games...");
       const games = await pokerClient.getAllGames();
@@ -93,6 +96,8 @@ export default function Home() {
     } finally {
       if (isRefresh) {
         setRefreshing(false);
+      } else {
+        setFetchingGames(false); // Clear loading state after initial fetch
       }
     }
   };
@@ -127,14 +132,63 @@ export default function Home() {
           )}
 
           {!connected && (
-            <div className="text-center py-16">
-              <div className="inline-block bg-gradient-to-br from-green-400/30 via-blue-500/20 to-purple-500/30 rounded-full p-8 mb-6 border-2 border-green-400/40 shadow-lg shadow-green-500/30 animate-pulse">
-                <span className="text-6xl">🎴</span>
+            <div className="text-center py-0">
+              <div className="mb-8">
+                <div className="inline-block bg-gradient-to-br from-green-400/30 via-blue-500/20 to-purple-500/30 rounded-full p-8 mb-4 border-2 border-green-400/40 shadow-lg shadow-green-500/30 animate-pulse">
+                  <span className="text-6xl">🎴</span>
+                </div>
+                <h1 className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-green-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+                  Welcome to Shield Poker
+                </h1>
               </div>
-              <h1 className="text-4xl font-extrabold mb-3 bg-gradient-to-r from-green-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Welcome to Private Poker
-              </h1>
-              <p className="text-white/80 text-lg font-medium">
+              
+              {/* Visual Flow */}
+              <div className="max-w-2xl mx-auto mb-6">
+                <div className="flex items-center justify-center gap-3 sm:gap-6 flex-wrap">
+                  {/* Step 1 */}
+                  <div className="flex flex-col items-center group">
+                    <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl p-4 border-2 border-green-400/30 backdrop-blur-sm shadow-lg shadow-green-500/20 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-4xl">🔐</span>
+                    </div>
+                    <p className="text-white/70 text-xs mt-2 font-medium">Connect</p>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="hidden sm:block text-2xl text-white/40">→</div>
+
+                  {/* Step 2 */}
+                  <div className="flex flex-col items-center group">
+                    <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl p-4 border-2 border-blue-400/30 backdrop-blur-sm shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-4xl">🎮</span>
+                    </div>
+                    <p className="text-white/70 text-xs mt-2 font-medium">Create/Join</p>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="hidden sm:block text-2xl text-white/40">→</div>
+
+                  {/* Step 3 */}
+                  <div className="flex flex-col items-center group">
+                    <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl p-4 border-2 border-purple-400/30 backdrop-blur-sm shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-4xl">🛡️</span>
+                    </div>
+                    <p className="text-white/70 text-xs mt-2 font-medium">Play Private</p>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="hidden sm:block text-2xl text-white/40">→</div>
+
+                  {/* Step 4 */}
+                  <div className="flex flex-col items-center group">
+                    <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-2xl p-4 border-2 border-yellow-400/30 backdrop-blur-sm shadow-lg shadow-yellow-500/20 group-hover:scale-110 transition-transform duration-300">
+                      <span className="text-4xl">🏆</span>
+                    </div>
+                    <p className="text-white/70 text-xs mt-2 font-medium">Win</p>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-white/80 text-lg  font-medium">
                 Connect your wallet to start playing
               </p>
             </div>
@@ -182,6 +236,23 @@ export default function Home() {
               {/* Games List */}
               <div className="space-y-2">
                   {(() => {
+                    // Show loading state while fetching games initially
+                    if (fetchingGames) {
+                      return (
+                        <div className="text-center py-12 bg-gradient-to-br from-white/10 via-blue-500/5 to-purple-500/5 rounded-xl border-2 border-white/20 shadow-lg">
+                          <div className="text-5xl mb-4 animate-spin">
+                            🎴
+                          </div>
+                          <p className="text-white text-xl font-bold mb-2 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+                            Loading games...
+                          </p>
+                          <p className="text-white/70 text-sm mt-2 font-medium">
+                            Fetching games from blockchain
+                          </p>
+                        </div>
+                      );
+                    }
+
                     // Filter games based on active tab
                     const filteredGames = allGames.filter((game) => {
                       if (activeTab === "live") {
@@ -191,6 +262,7 @@ export default function Home() {
                       }
                     });
 
+                    // Only show "No games found" after fetching is complete
                     if (filteredGames.length === 0) {
                       return (
                         <div className="text-center py-12 bg-gradient-to-br from-white/10 via-blue-500/5 to-purple-500/5 rounded-xl border-2 border-white/20 shadow-lg">
