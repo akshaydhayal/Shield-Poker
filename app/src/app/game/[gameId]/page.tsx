@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
@@ -65,7 +65,7 @@ export default function GamePage() {
     }
   }, [pokerClient, teeConnection]);
 
-  const handleAuthorize = async () => {
+  const handleAuthorize = useCallback(async () => {
     if (!publicKey || !signMessage) {
       setError("Wallet not connected");
       return;
@@ -122,7 +122,7 @@ export default function GamePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [publicKey, signMessage, gameState, pokerClient, gameId]);
 
   const handleJoinGame = async () => {
     if (!pokerClient) {
@@ -285,7 +285,7 @@ export default function GamePage() {
     }
   };
 
-  const fetchGameState = async () => {
+  const fetchGameState = useCallback(async () => {
     if (!pokerClient) return;
 
     try {
@@ -330,7 +330,7 @@ export default function GamePage() {
         console.error("Error fetching game state:", err);
       }
     }
-  };
+  }, [pokerClient, gameId, publicKey]);
 
   // Auto-resolve game when in Showdown phase
   useEffect(() => {
@@ -351,7 +351,7 @@ export default function GamePage() {
       };
       autoResolve();
     }
-  }, [pokerClient, gameId, gameState?.phase, loading]);
+  }, [pokerClient, gameId, gameState, loading, fetchGameState]);
 
   useEffect(() => {
     if (pokerClient && gameId) {
@@ -359,7 +359,7 @@ export default function GamePage() {
       const interval = setInterval(fetchGameState, 5000);
       return () => clearInterval(interval);
     }
-  }, [pokerClient, gameId]);
+  }, [pokerClient, gameId, fetchGameState]);
 
   // Auto-authorize TEE when wallet connects and game is active
   useEffect(() => {
@@ -369,7 +369,7 @@ export default function GamePage() {
         console.log("Auto-authorization failed, user can authorize manually:", err);
       });
     }
-  }, [connected, publicKey, signMessage, authToken, loading, gameState?.phase]);
+  }, [connected, publicKey, signMessage, authToken, loading, gameState?.phase, gameState, handleAuthorize]);
 
   // Helper to get player display name
   const getPlayerName = (playerPubkey: PublicKey | null | undefined) => {

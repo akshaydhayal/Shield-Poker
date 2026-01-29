@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
@@ -73,7 +73,7 @@ export default function Home() {
     router.push(`/game/${joinGameId}`);
   };
 
-  const fetchAllGames = async (isRefresh: boolean = false) => {
+  const fetchAllGames = useCallback(async (isRefresh: boolean = false) => {
     if (!pokerClient) {
       console.log("PokerClient not available yet");
       return;
@@ -100,18 +100,18 @@ export default function Home() {
         setFetchingGames(false); // Clear loading state after initial fetch
       }
     }
-  };
+  }, [pokerClient]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     fetchAllGames(true);
-  };
+  }, [fetchAllGames]);
 
   // Fetch games only once on mount (when pokerClient is ready)
   useEffect(() => {
     if (pokerClient) {
       fetchAllGames(false);
     }
-  }, [pokerClient]);
+  }, [pokerClient, fetchAllGames]);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-green-900 to-green-700">
