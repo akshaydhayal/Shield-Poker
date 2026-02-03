@@ -1,26 +1,37 @@
-# 🛡️ Shield Poker: Privacy-Preserving Texas Hold'em
+# 🛡️ Shield Poker: Privacy-Preserving Poker Game
+
+Live Project Link: [https://shield-poker.vercel.app/](https://shield-poker.vercel.app/)
 
 Shield Poker is a decentralized, P2P Texas Hold'em game built on Solana. It leverages **MagicBlock's Private Ephemeral Rollups (PER)** to solve the "on-chain leakage" problem, keeping player hands absolutely private while maintaining 50ms execution speeds for real-time betting.
 
 ---
+## 📺 Project Demo
 
-## 📺 Project Presentation
-<!-- slide -->
-> [!NOTE]
-> ### 🎥 Demo Video
-> [![Shield Poker Demo](https://img.youtube.com/vi/PLACEHOLDER_VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=PLACEHOLDER_VIDEO_ID)
-> *Watch our 3-minute technical walkthrough and game demo.*
+### 🎥 Presentation Video
+[![https://drive.google.com/file/d/14YcDFWejDX3U-uRmo3FxuUtVDqCmWaf-/view?usp=drive_link](https://drive.google.com/file/d/14YcDFWejDX3U-uRmo3FxuUtVDqCmWaf-/view?usp=drive_link)]([Link to Presentation Video])
+> 
 
----
+### 📸 Product Screenshots
 
-## 📸 Screenshots
-````carousel
-![Main Lobby](https://via.placeholder.com/800x450.png?text=Lobby+Screenshot+Placeholder)
-<!-- slide -->
-![Private Game Room](https://via.placeholder.com/800x450.png?text=Game+Room+Screenshot+Placeholder)
-<!-- slide -->
-![Showdown Phase](https://via.placeholder.com/800x450.png?text=Showdown+Screenshot+Placeholder)
-````
+<div align="center">
+  <p><b>1. Poker HomePage</b></p>
+  <img src="https://github.com/akshaydhayal/MagicBlock-Shield-Poker/blob/main/shield-poker-vercel-app.png" alt="Recipients Management" width="600">
+  <br>
+  <p><i>Lists all live Pending and completed Poker games</i></p>
+  
+  <p><b>2. Poker GamePage</b></p>
+  <img src="https://github.com/akshaydhayal/MagicBlock-Shield-Poker/blob/main/localhost-3000-game-4.png" alt="Execute Payroll" width="600">
+  <br>
+  <p><i>Joined players can see game state and take actions such as fold, check, call or bet amount.</i></p>
+
+  <p><b>2. Game Result/Showdown Phase</b></p>
+  <img src="https://github.com/akshaydhayal/MagicBlock-Shield-Poker/blob/main/localhost-3000-game-3.png" alt="Execute Payroll" width="600">
+  <br>
+  <p><i>See which player won and how much</i></p>
+
+
+
+</div>
 
 ---
 
