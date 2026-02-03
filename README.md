@@ -8,8 +8,8 @@ Shield Poker is a decentralized, P2P Texas Hold'em game built on Solana. It leve
 ## 📺 Project Demo
 
 ### 🎥 Presentation Video
-[![https://drive.google.com/file/d/14YcDFWejDX3U-uRmo3FxuUtVDqCmWaf-/view?usp=drive_link](https://drive.google.com/file/d/14YcDFWejDX3U-uRmo3FxuUtVDqCmWaf-/view?usp=drive_link)]([Link to Presentation Video])
-> 
+[https://drive.google.com/file/d/14YcDFWejDX3U-uRmo3FxuUtVDqCmWaf-/view?usp=drive_link](https://drive.google.com/file/d/14YcDFWejDX3U-uRmo3FxuUtVDqCmWaf-/view?usp=drive_link)
+
 
 ### 📸 Product Screenshots
 
