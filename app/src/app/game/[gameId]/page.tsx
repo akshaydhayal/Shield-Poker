@@ -481,14 +481,29 @@ export default function GamePage() {
 
       {/* Error Display */}
       {error && (
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500/90 border border-red-400 rounded-lg p-4 max-w-md">
-          <p className="text-white text-sm">{error}</p>
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500/90 border border-red-400 rounded-lg p-4 max-w-md shadow-2xl backdrop-blur-md">
+          <div className="flex flex-col gap-2">
+            <p className="text-white text-sm font-medium">{error}</p>
+            <p className="text-red-100 text-[11px] italic">
+              Tip: If you're stuck or shuffling/dealing fails, try <button onClick={() => window.location.reload()} className="underline font-bold hover:text-white">refreshing the page</button> to resync state.
+            </p>
+          </div>
         </div>
       )}
 
       {/* Main Poker Table Container */}
       <div className="flex items-center justify-center min-h-screen pt-12 pb-24 px-2">
         <div className="relative w-full max-w-4xl">
+          
+          {/* Caution Notice - Above Table */}
+          <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 z-30 w-full max-w-[280px] sm:max-w-[320px] pointer-events-none">
+            <div className="bg-black/60 backdrop-blur-md border border-yellow-500/30 rounded-full px-4 py-1.5 shadow-lg flex items-center justify-center gap-2">
+              <span className="text-yellow-500 text-xs animate-pulse">⚠️</span>
+              <p className="text-white/90 text-[10px] sm:text-[11px] font-medium whitespace-nowrap">
+                Stuck or getting Errors? <button onClick={() => window.location.reload()} className="pointer-events-auto text-yellow-400 underline font-bold hover:text-yellow-300">Refresh Page</button> to resync deck/state or fix errors.
+              </p>
+            </div>
+          </div>
           
           {/* Poker Table - Green Oval */}
           <div className="relative w-full aspect-[16/10] max-h-[55vh] bg-gradient-to-br from-green-700 via-green-800 to-green-900 rounded-[50%] shadow-2xl border-2 sm:border-3 border-green-950">
@@ -1001,6 +1016,7 @@ export default function GamePage() {
           </div>
         </div>
       )}
+
     </main>
   );
 }

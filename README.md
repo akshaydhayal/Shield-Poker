@@ -1,154 +1,110 @@
-# Shield Poker on Solana with MagicBlock PER
+# 🛡️ Shield Poker: Privacy-Preserving Texas Hold'em
 
-Shield Poker is a privacy-preserving poker game built on Solana using MagicBlock's Private Ephemeral Rollups (PER) for confidential game state and real-time execution.
+Shield Poker is a decentralized, P2P Texas Hold'em game built on Solana. It leverages **MagicBlock's Private Ephemeral Rollups (PER)** to solve the "on-chain leakage" problem, keeping player hands absolutely private while maintaining 50ms execution speeds for real-time betting.
 
-## 🎯 Project Overview
+---
 
-This is an MVP implementation of a 2-player Texas Hold'em poker game that runs privately on MagicBlock's TEE (Trusted Execution Environment). The game state, including player hands, is kept confidential through MagicBlock's PER technology.
+## 📺 Project Presentation
+<!-- slide -->
+> [!NOTE]
+> ### 🎥 Demo Video
+> [![Shield Poker Demo](https://img.youtube.com/vi/PLACEHOLDER_VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=PLACEHOLDER_VIDEO_ID)
+> *Watch our 3-minute technical walkthrough and game demo.*
 
-## 🏗️ Architecture
+---
 
-### On-Chain Program (Anchor)
-- **Game State**: Tracks game phases, pot, players, board cards
-- **Player State**: Stores each player's committed chips, hand (encrypted), fold status
-- **Game Vault**: Escrows SOL for the game
-- **MagicBlock Integration**: Permission hooks and delegation hooks for privacy
+## 📸 Screenshots
+````carousel
+![Main Lobby](https://via.placeholder.com/800x450.png?text=Lobby+Screenshot+Placeholder)
+<!-- slide -->
+![Private Game Room](https://via.placeholder.com/800x450.png?text=Game+Room+Screenshot+Placeholder)
+<!-- slide -->
+![Showdown Phase](https://via.placeholder.com/800x450.png?text=Showdown+Screenshot+Placeholder)
+````
 
-### Frontend (Next.js)
-- Wallet connection (Phantom, Solflare)
-- MagicBlock TEE authorization
-- Game UI for player actions
-- Real-time state polling
+---
 
-## 🚀 Getting Started
+## 🎯 The Problem
+On standard blockchains, all state is public. For games like Poker, this is a non-starter:
+1. **Card Privacy**: If your hand is on-chain, anyone can see it.
+2. **Latency**: Waiting 400ms - 2s for every bet kills the game flow.
+3. **Cost**: Transaction fees for every "Check" or "Small Bet" add up quickly.
+
+## 🏗️ The Solution: MagicBlock PER
+Shield Poker moves the sensitive game logic into a hardware-secured **Trusted Execution Environment (TEE)** using **Intel TDX**. 
+
+### **Technical Deep Dive**
+
+#### **1. Real-Time Privacy (Intel TDX TEE)**
+The game logic runs within a TEE validator. This ensures that even the validator operator cannot peek at the memory where player hands are processed. We use the `#[ephemeral]` attribute to mark accounts that should exist primarily in the TEE for speed.
+
+#### **2. Protocol-Level Access Control (ACL)**
+Instead of just client-side encryption, Shield Poker uses MagicBlock's **Permission Program (ACL)**:
+- **Public Accounts**: The `Game` account (pot, community cards) has a public ACL.
+- **Private Accounts**: Each `PlayerState` (holding the hole cards) is protected by a restricted ACL. Only the specific player holding the corresponding TEE authorization token can read their own state.
+
+#### **3. Fast State Settlement**
+By delegating accounts to the TEE, we achieve **~50ms execution**. Once the "Showdown" occurs, the `commit_game` instruction triggers a state settlement:
+- Final winner is determined in the TEE.
+- The state is "committed" and "undelegated" back to Solana L1.
+- Funds are distributed from the L1 Vault.
+
+---
+
+## 🚀 Architecture Diagram
+
+```mermaid
+sequenceDiagram
+    participant P1 as Player 1 (Dealer)
+    participant P2 as Player 2
+    participant TEE as MagicBlock TEE (Intel TDX)
+    participant L1 as Solana L1
+
+    P1->>L1: Initialize Game & Vault
+    P2->>L1: Join Game
+    Note over P1, P2: Setup Delegation & ACLs
+    P1->>TEE: Shuffle & Deal (Private)
+    Note right of TEE: Cards stay in TEE memory
+    P1->>TEE: Action: Bet (50ms)
+    P2->>TEE: Action: Call (50ms)
+    Note over TEE: Phase Advance (Flop/Turn/River)
+    TEE->>L1: #[commit] Settle Final State
+    L1->>P1/P2: Distribute Pot
+```
+
+---
+
+## 🛠️ Getting Started
 
 ### Prerequisites
-
-- Solana CLI 2.3.13+
-- Rust 1.85.0+
-- Anchor 0.32.1+
-- Node.js 24.10.0+
+- Solana CLI & Anchor 0.32.1
+- MagicBlock TEE Authorized Wallet
 
 ### Installation
-
-1. **Install Anchor**:
-   ```bash
-   cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
-   avm install 0.32.1
-   avm use 0.32.1
-   ```
-
-2. **Build the program**:
+1. **Clone the repo**
+2. **Setup Program**:
    ```bash
    anchor build
-   ```
-
-3. **Deploy to devnet**:
-   ```bash
    anchor deploy
    ```
-
-4. **Install frontend dependencies**:
+3. **Launch Frontend**:
    ```bash
    cd app
    npm install
-   ```
-
-5. **Run the frontend**:
-   ```bash
    npm run dev
    ```
 
-## 🎮 Game Flow
-
-1. **Initialize Game**: Player 1 creates a game with a buy-in amount
-2. **Join Game**: Player 2 joins the game
-3. **Set Deck Seed**: Deck seed is set (from VRF or commit-reveal)
-4. **Deal Cards**: Cards are dealt to players (encrypted via PER)
-5. **Player Actions**: Players can bet, call, fold, or check
-6. **Advance Phase**: Game progresses through PreFlop → Flop → Turn → River → Showdown
-7. **Resolve Game**: Winner is determined and pot is distributed
-
-## 🔒 Privacy Features
-
-- **Private State**: Player hands are encrypted and only visible to authorized players
-- **TEE Execution**: Game logic runs in MagicBlock's Trusted Execution Environment
-- **Access Control**: Fine-grained permissions via MagicBlock's Permission Program
-- **Real-time Privacy**: State changes are processed privately on PER
-
-## 🛠️ MagicBlock Integration
-
-### Permission Program
-- Program ID: `ACLseoPoyC3cBqoUtkbjZ4aDrkurZW86v19pXz2XQnp1`
-- Manages access control for game accounts
-
-### Delegation Program
-- Program ID: `DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh`
-- Delegates accounts to PER validators
-
-### TEE Endpoint
-- URL: `https://tee.magicblock.app`
-- Requires authorization token for access
-
-### Validators
-- TEE: `FnE6VJT5QNZdedZPnCoLsARgBwoE6DeJNjBs2H1gySXA`
-- Asia: `MAS1Dt9qreoRMQ14YQuhg8UTZMMzDdKhmkZMECCzk57`
-- EU: `MEUGGrYPxKk17hCr7wpT6s8dtNokZj5U2L57vjYMS8e`
-- US: `MUS3hc9TCw4cGC12vHNoYcCGzJG1txjgQLZWVoeNHNd`
-
-## 📝 MVP Scope
-
-- ✅ 2-player heads-up poker
-- ✅ Fixed blinds
-- ✅ Bet/Call/Fold/Check actions
-- ✅ Game phases (PreFlop → Flop → Turn → River → Showdown)
-- ✅ MagicBlock PER integration
-- ✅ Private state via TEE
-- ⏳ VRF integration (planned)
-- ⏳ Multi-player tables (future)
-- ⏳ Tournament mode (future)
-
-## 🔧 Development
-
-### Program Structure
-```
-programs/private-poker/
-├── src/
-│   └── lib.rs          # Main program logic
-└── Cargo.toml
-
-app/
-├── src/
-│   ├── app/            # Next.js pages
-│   ├── lib/            # Client libraries
-│   └── config.ts       # Configuration
-└── package.json
-```
-
-### Key Instructions
-
-- `initialize_game`: Create a new game
-- `join_game`: Second player joins
-- `set_deck_seed`: Set deck seed (from VRF)
-- `deal_cards`: Deal cards to players
-- `player_action`: Execute player action
-- `advance_phase`: Move to next game phase
-- `resolve_game`: Determine winner and payout
-- `create_permission`: Create permission account
-- `delegate_pda`: Delegate account to PER
-
-## 📚 Resources
-
-- [MagicBlock PER Documentation](https://docs.magicblock.gg/pages/private-ephemeral-rollups-pers/how-to-guide/quickstart)
-- [Anchor Documentation](https://www.anchor-lang.com/docs)
-- [Solana Documentation](https://docs.solana.com/)
+---
 
 ## 🏆 Hackathon Submission
+This project is submitted for the **Privacy Hack 2026** in the **MagicBlock Track**.
 
-This project is submitted for the **Privacy Hack 2026** hackathon in the **MagicBlock Track**:
-- **Track**: Real-time Privacy with MagicBlock
-- **Prize**: $2,500 (Best Private App), $1,500 (Second Place), $1,000 (Third Place)
+### **Key Innovations**
+- **Zero-Leaking Hands**: Hands are never visible on L1 Explorers.
+- **Instant Betting**: Real-time feedback loop without waiting for L1 finality.
+- **Hybrid Security**: Trustless L1 settlement for funds, TEE privacy for game logic.
+
+---
 
 ## 📄 License
-
-MIT
+MIT © 2026 Shield Poker Team
