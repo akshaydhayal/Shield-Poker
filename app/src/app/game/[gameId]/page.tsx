@@ -485,7 +485,7 @@ export default function GamePage() {
           <div className="flex flex-col gap-2">
             <p className="text-white text-sm font-medium">{error}</p>
             <p className="text-red-100 text-[11px] italic">
-              Tip: If you're stuck or shuffling/dealing fails, try <button onClick={() => window.location.reload()} className="underline font-bold hover:text-white">refreshing the page</button> to resync state.
+              Tip: If you&apos;re stuck or shuffling/dealing fails, try <button onClick={() => window.location.reload()} className="underline font-bold hover:text-white">refreshing the page</button> to resync state.
             </p>
           </div>
         </div>
