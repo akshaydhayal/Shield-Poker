@@ -1,5 +1,5 @@
 {
-  "address": "AcyjLBZMjeaBrnxZLin61r3n5GHkdobyHwWygpJsBATv",
+  "address": "69bBkxpEHN9eEawdkvae9mZKZjgHLjfbAiCJheH1B94z",
   "metadata": {
     "name": "private_poker",
     "version": "0.1.0",
@@ -242,6 +242,15 @@
         {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
         }
       ],
       "args": []
@@ -348,38 +357,38 @@
             "program": {
               "kind": "const",
               "value": [
-                142,
-                240,
-                167,
-                193,
+                76,
+                125,
+                188,
+                24,
+                187,
+                103,
+                16,
+                8,
+                231,
+                205,
+                141,
+                58,
+                213,
+                91,
+                232,
+                175,
+                100,
+                179,
+                17,
+                102,
+                229,
+                15,
+                19,
+                77,
+                137,
+                14,
+                133,
+                49,
+                163,
                 13,
-                11,
-                173,
-                252,
-                230,
-                172,
-                81,
-                132,
-                87,
-                87,
-                148,
-                212,
-                167,
-                29,
-                212,
-                80,
-                78,
-                46,
-                82,
-                66,
-                142,
-                4,
-                191,
-                153,
-                203,
-                40,
-                255,
-                237
+                47,
+                215
               ]
             }
           }
@@ -469,7 +478,7 @@
         },
         {
           "name": "owner_program",
-          "address": "AcyjLBZMjeaBrnxZLin61r3n5GHkdobyHwWygpJsBATv"
+          "address": "69bBkxpEHN9eEawdkvae9mZKZjgHLjfbAiCJheH1B94z"
         },
         {
           "name": "delegation_program",

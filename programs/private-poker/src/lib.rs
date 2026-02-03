@@ -10,7 +10,7 @@ use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 // VRF SDK temporarily disabled - using client-side random seed for now
 // TODO: Re-enable VRF when SDK compatibility is resolved
 
-declare_id!("AcyjLBZMjeaBrnxZLin61r3n5GHkdobyHwWygpJsBATv");
+declare_id!("69bBkxpEHN9eEawdkvae9mZKZjgHLjfbAiCJheH1B94z");
 
 // MagicBlock Program IDs (PERMISSION_PROGRAM_ID is imported from SDK)
 use anchor_lang::solana_program::pubkey;
@@ -966,11 +966,22 @@ pub mod private_poker {
         game.phase = GamePhase::Finished;
 
         // Store final state info for L1 claim
-        // Note: accounts stay delegated, but winner info is set
         msg!("Game {} outcome determined. Winner: {}", game.game_id, actual_winner);
         msg!("Pot amount: {} lamports", game.pot_amount);
         msg!("Player1 committed: {} lamports", player1_state.chips_committed);
         msg!("Player2 committed: {} lamports", player2_state.chips_committed);
+
+        // Exit and commit to L1
+        // This undelegates the game account so L1 home page sees it as Finished
+        let game_info = game.to_account_info();
+        game.exit(ctx.program_id)?;
+        
+        commit_and_undelegate_accounts(
+            &ctx.accounts.payer,
+            vec![&game_info],
+            &ctx.accounts.magic_context,
+            &ctx.accounts.magic_program,
+        )?;
 
         Ok(())
     }
@@ -1366,7 +1377,8 @@ pub struct AdvancePhase<'info> {
 }
 
 /// CommitGame - runs on TEE to determine winner
-/// This just sets the winner and pot info - no undelegation needed
+/// This now undelegates the game account back to L1
+#[commit]
 #[derive(Accounts)]
 pub struct CommitGame<'info> {
     #[account(

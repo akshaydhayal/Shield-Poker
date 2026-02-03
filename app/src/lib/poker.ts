@@ -812,8 +812,9 @@ export class PokerClient {
 
     // PHASE 1: Commit game and determine winner (TEE)
     if (this.teeConnection && this.teeProgram) {
-      console.log("🔄 Phase 1: Determining winner on TEE...");
+      console.log("🔄 Phase 1: Determining winner on TEE and settling to L1...");
       
+
       const commitIx = await this.teeProgram.methods
         .commitGame()
         .accounts({

@@ -237,27 +237,28 @@ export default function GamePage() {
         if (freshGameState) {
           setGameState(freshGameState);
           
-          // Fetch player states directly to check if cards were dealt
-          if (freshGameState.player1 && freshGameState.player2) {
+          // Fetch only the CURRENT player's state to check if cards were dealt
+          // Due to MagicBlock privacy, we cannot see the opponent's private hand
+          if (publicKey) {
             try {
-              const [p1State, p2State] = await Promise.all([
-                pokerClient.getPlayerState(gameId, freshGameState.player1),
-                pokerClient.getPlayerState(gameId, freshGameState.player2),
-              ]);
+              const myState = await pokerClient.getPlayerState(gameId, publicKey);
               
-              console.log(`Attempt ${attempts + 1}: Player 1 hand:`, p1State?.hand, "Player 2 hand:", p2State?.hand);
+              const isPlayer1 = gameState.player1?.equals(publicKey);
+              console.log(`Attempt ${attempts + 1}: ${isPlayer1 ? 'Player 1' : 'Player 2'} hand fetched:`, myState?.hand);
               
-              // Check if cards were actually dealt
-              if (p1State?.hand && p1State.hand.some(c => c > 0) && 
-                  p2State?.hand && p2State.hand.some(c => c > 0)) {
-                console.log("✅ Cards successfully dealt and state updated");
-                setPlayer1State(p1State);
-                setPlayer2State(p2State);
+              // Check if cards were actually dealt to US
+              if (myState?.hand && myState.hand.some(c => c > 0)) {
+                console.log("✅ Cards successfully dealt and state updated for local player");
+                if (isPlayer1) {
+                  setPlayer1State(myState);
+                } else {
+                  setPlayer2State(myState);
+                }
                 cardsDealt = true;
                 break;
               }
             } catch (err) {
-              console.warn(`Error fetching player states on attempt ${attempts + 1}:`, err);
+              console.warn(`Error fetching local player state on attempt ${attempts + 1}:`, err);
             }
           }
         }
