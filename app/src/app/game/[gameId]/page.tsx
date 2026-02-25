@@ -9,6 +9,7 @@ import { PokerClient, GamePhase, PlayerActionType, PlayerState } from "@/lib/pok
 import { authorizeTee, createTeeConnection } from "@/lib/magicblock";
 import { RPC_URL } from "@/config";
 import { CardComponent } from "@/lib/cardUtils";
+import GameChat from "@/components/GameChat";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export default function GamePage() {
@@ -388,6 +389,9 @@ export default function GamePage() {
   
   // Helper to check if it's player 2's turn
   const isPlayer2Turn = gameState?.currentTurn && gameState.player2 && gameState.currentTurn.equals(gameState.player2);
+
+  const isPlayer1 = !!(publicKey && gameState?.player1 && publicKey.equals(gameState.player1));
+  const isPlayer2 = !!(publicKey && gameState?.player2 && publicKey.equals(gameState.player2));
 
   // Helper to get remaining buy-in for current player
   // Uses PUBLIC committed amounts from gameState (visible to both players)
@@ -1016,6 +1020,14 @@ export default function GamePage() {
           </div>
         </div>
       )}
+
+      {/* Tapestry Game Chat */}
+      <GameChat 
+        gameId={gameId.toString()} 
+        player1Key={gameState?.player1?.toString() || ""} 
+        isPlayer1={isPlayer1} 
+        isPlayer2={isPlayer2} 
+      />
 
     </main>
   );

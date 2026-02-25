@@ -8,6 +8,8 @@ import { PokerClient, GamePhase } from "@/lib/poker";
 import { RPC_URL } from "@/config";
 import Navbar from "@/components/Navbar";
 import CreateGameModal from "@/components/CreateGameModal";
+import TapestryProfileModal from "@/components/TapestryProfileModal";
+import { useCurrentWallet } from "@/hooks/use-current-wallet";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export default function Home() {
@@ -22,6 +24,8 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [showCreateGameModal, setShowCreateGameModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"live" | "completed">("live");
+  const { mainProfile } = useCurrentWallet();
+  const [enforceProfileJoin, setEnforceProfileJoin] = useState(false);
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -292,7 +296,11 @@ export default function Home() {
                         <div
                           key={game.gameId}
                           onClick={() => {
-                            router.push(`/game/${game.gameId}`);
+                            if (!mainProfile && game.phase !== GamePhase.Finished) {
+                              setEnforceProfileJoin(true);
+                            } else {
+                              router.push(`/game/${game.gameId}`);
+                            }
                           }}
                           className="group p-3 rounded-lg cursor-pointer transition-all duration-200 bg-gradient-to-br from-white/10 via-blue-500/5 to-purple-500/5 border border-white/20 hover:border-green-400/60 hover:bg-gradient-to-br hover:from-white/15 hover:via-blue-500/10 hover:to-purple-500/10 hover:shadow-lg hover:shadow-green-500/30 hover:scale-[1.02]"
                         >
@@ -348,7 +356,11 @@ export default function Home() {
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    router.push(`/game/${game.gameId}`);
+                                    if (!mainProfile && game.phase !== GamePhase.Finished) {
+                                      setEnforceProfileJoin(true);
+                                    } else {
+                                      router.push(`/game/${game.gameId}`);
+                                    }
                                   }}
                                   disabled={loading}
                                   className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 text-white text-xs font-bold py-1.5 px-3 rounded-md disabled:opacity-50 shadow-lg shadow-blue-500/40 transition-all hover:scale-105"
@@ -372,6 +384,11 @@ export default function Home() {
           )}
         </div>
       </div>
+      <TapestryProfileModal 
+        forceShow={enforceProfileJoin} 
+        onClose={() => setEnforceProfileJoin(false)}
+        message="To join live poker games and chat with other players, you'll need a quick player profile first!"
+      />
     </main>
   );
 }

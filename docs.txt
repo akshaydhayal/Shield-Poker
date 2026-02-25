@@ -1,0 +1,2665 @@
+This is documentation of tapestry for which I am trying to build a project for.
+
+
+What is Tapestry?
+Tapestry is a powerful social graph protocol that enables developers to build sophisticated social features into their blockchain applications with ease. It provides a robust infrastructure for managing user profiles, social connections, and interactions and stores them directly on the Solana L1.
+
+Key Features
+Composable User Identities: Create and manage user profiles that can be shared and utilized across different applications built on Tapestry.
+Social Graph Management: Easily implement follow/unfollow functionality, manage user connections, content creation, and build complex social networks.
+Scalable Infrastructure: Designed to handle high-volume social interactions with minimal latency.
+Developer-Friendly API: Intuitive API endpoints for seamless integration into your application.
+Why Use Tapestry?
+Tapestry simplifies the process of building social features in blockchain applications. Instead of reinventing the wheel for each new app, developers can leverage Tapestry's infrastructure to:
+
+Reduce development time and costs
+Speed up user onboarding and quicken the user's time to value
+Surface social connections users bring with them from other apps in your app, so they onboard into density and start engaging on day 0.
+Build highly engaging social features (e.g. posting, liking, commenting, friending, following) quickly so you can focus on building the features that make your app truly unique
+Whether you're building a decentralized social media platform, a collaborative tool, a gaming app, or a hacking on a new idea, Tapestry provides the foundation you need to create rich, interconnected user experiences.
+
+Get Started
+New to Solana app development? Try our Solana Starter Kit - a complete template with Tapestry and other essential infrastructure pre-configured.
+
+Integrating into an existing app? Check out our Quickstart Guide to begin building with Tapestry!
+
+Next
+Our Vision
+
+
+Why Use Tapestry?
+The era of dominant, monolithic social platforms is ending. While the promise of "open" social protocols seemed like the answer, they've only created more fragmentation – forcing users to rebuild networks and developers to waste resources reimplementing basic features.
+
+Tapestry takes a different approach. Instead of adding another competing protocol, we unify existing social data across Solana, the EVM, and beyond into a comprehensive layer. We create the foundation for truly portable social connections, making social data universally accessible through one API.
+
+Benefits for Developers
+Launch With Network Effects: Access rich social context and existing networks from day one
+Focus on Innovation: Instead of spending months implementing basic social features, concentrate on your unique value proposition
+Simple Integration: Start accessing comprehensive social data within minutes through our REST API
+Enhanced Engagement: Early adopters report significant improvements in metrics after integration
+Earn Points: Every time your app's data is read by another app on the protocol, you earn points.
+Benefits for Users
+True Data Portability: Social connections persist across applications and platforms
+Richer Experiences: Access personalized, context-aware applications from launch
+Seamless Integration: Experience optimal social features without rebuilding networks
+Value Integration: Social and financial interactions flow naturally in the same layer
+Earn as You Engage: The more apps you use in the Tapestry ecosystem and the more you engage, the more points you earn.
+Our Worldview
+The future of social software isn't about building bigger walled gardens – it's about creating a universal foundation that enables unprecedented connectivity. As applications become increasingly AI-generated, the importance of a permanent, portable social layer grows exponentially.
+
+We envision a world where:
+
+Communities can spawn custom tools tailored to their specific needs
+Events can create temporary economies with built-in social context
+Cultural phenomena can rapidly evolve into functional applications
+By providing universal access to social data, Tapestry removes the artificial barriers to innovation in the social space. The next generation of social software won't be defined by who owns the largest social graph, but by who can create the most compelling experiences on top of a shared social foundation.
+
+Join us in building this future with Tapestry.
+
+Next
+How Tapestry Works
+
+
+How Tapestry Works
+Architecture
+Tapestry uses state compression and Merkle trees to store social graph data onchain. This is the same technology used for compressed NFTs on Solana.
+
+State Compression Overview
+State compression is a technique that allows for storing large amounts of data off-chain while maintaining a cryptographic proof of that data onchain. Here's how Tapestry implements this:
+
+Off-chain Storage: Social graph data (user profiles, connections, interactions) is stored in an off-chain graph database. This allows for fast queries and updates without incurring blockchain transaction costs for every operation.
+
+Merkle Trees: The off-chain data is organized into Merkle trees. A Merkle tree is a data structure where each non-leaf node is a hash of its child nodes, and leaf nodes contain the actual data or hashes of data.
+
+Onchain Root: The root of the Merkle tree, which represents a cryptographic summary of the entire dataset, is stored on the Solana blockchain. This root serves as an immutable, on-chain anchor for the off-chain data. Any attempt to tamper with the off-chain data will result in a mismatch with the on-chain Merkle root, making it immediately detectable and ensuring the integrity of the entire social graph.
+
+Parallels with Compressed NFTs
+This approach is identical to how compressed NFTs work on Solana:
+
+Compressed NFTs: Store metadata off-chain but keep a Merkle root on-chain for verification.
+Tapestry Social Graph: Stores social data off-chain but keeps a Merkle root on-chain for verification.
+In both cases, the goal is to reduce on-chain storage costs while maintaining the security and verifiability benefits of blockchain technology.
+
+Benefits of This Approach
+Scalability: Can handle millions of users and interactions without bloating the blockchain.
+Cost-Efficiency: Reduces on-chain storage costs significantly.
+Speed: Allows for fast reads and writes to the social graph.
+Verifiability: Any piece of social graph data can be cryptographically verified against the on-chain Merkle root.
+Decentralization: While data is stored off-chain, its integrity is ensured by the decentralized Solana network.
+How It Works in Practice
+When a user updates their profile or makes a new connection, the data is stored in the off-chain database.
+The Merkle tree is updated to include this new data.
+The new Merkle root is calculated and stored on-chain in a Solana transaction.
+To verify any piece of social graph data, a Merkle proof can be generated and checked against the on-chain root.
+Conclusion
+By leveraging state compression and Merkle trees, Tapestry achieves a perfect balance between the scalability needs of a social graph and the security guarantees of blockchain technology. This approach ensures that Tapestry is as decentralized as compressed NFTs, while providing the performance and cost-efficiency required for a large-scale social protocol.
+
+Next
+Execution Methods
+
+
+Execution Methods
+Blockchain and Execution Methods
+Blockchain
+Tapestry uses the Solana blockchain for storing social graph data. For a deeper understanding of Tapestry's architecture and how it leverages Solana, please refer to our How Tapestry Works documentation.
+
+Execution Methods
+Tapestry offers three execution methods for processing on-chain transactions. Each method provides a different balance between speed and confirmation certainty:
+
+FAST_UNCONFIRMED
+
+Fastest roundtrip time (average under 1s)
+Performs the write and returns a 200 response when the graph database write is complete, and before the onchain transaction is confirmed
+Optimistically attempts to land the onchain transaction in the background
+Best for applications prioritizing speed and user experience
+QUICK_SIGNATURE
+
+Returns a transaction signature for the onchain transaction (average 5s)
+Does not attempt to confirm the transaction
+Ideal for applications that want to implement their own confirmation logic
+CONFIRMED_AND_PARSED
+
+Waits for the on-chain transaction to be sent and confirmed before returning a 200 response
+Slowest execution method (average roundtrip time of 15s)
+Provides the highest level of certainty that the transaction has been processed
+Suitable for applications requiring guaranteed on-chain confirmation before proceeding
+When making API calls, specify the execution method in your request body:
+
+Next
+Solana Starter Kit
+
+
+Solana Starter Kit
+Don't have an app yet? Start here! The Solana Starter Kit is a comprehensive template that helps you go from idea to live app in the shortest time possible. It comes pre-configured with all the essential infrastructure you need to build a modern Solana application.
+
+What's Included
+The starter kit includes pre-configured integrations with leading infrastructure providers:
+
+🔐 Wallet Authentication - Privy for seamless user onboarding
+👥 Social Features - Tapestry for profiles, follows, posts, and social graph
+💰 Token Swapping - 0x for DEX aggregation and trading
+📊 Portfolio View - Zerion for wallet analytics and asset tracking
+🔗 RPC Calls - Helius for reliable Solana blockchain access
+Quick Start
+1. Clone the Repository
+git clone https://github.com/Primitives-xyz/solana-starter-kit
+cd solana-starter-kit
+
+2. Get Your API Keys
+Sign up for API keys from each infrastructure partner:
+
+Privy - Web3 authentication and embedded wallet infrastructure
+Tapestry - Social graph and onchain identity API
+0x - Token swapping and DEX aggregation
+Zerion - Portfolio analytics and wallet data
+Helius - Solana RPC and blockchain infrastructure
+3. Configure Environment
+cp .env.example .env.local
+
+Update .env.local with your API credentials:
+
+# Tapestry - Social Features
+NEXT_PUBLIC_TAPESTRY_API_KEY=your_tapestry_api_key_here
+
+# Privy - Authentication
+NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id_here
+
+# Helius - RPC & NFT Data
+NEXT_PUBLIC_HELIUS_API_KEY=your_helius_api_key_here
+
+# Additional API keys for other services...
+
+4. Install Dependencies and Run
+pnpm install
+pnpm run dev
+
+Your app will be running at http://localhost:3000 with all infrastructure ready to go!
+
+Key Features Out of the Box
+Social Features (Tapestry)
+✅ User profile creation and management
+✅ Follow/unfollow system
+✅ Post creation and social feeds
+✅ Import existing Tapestry social connections
+Authentication (Privy)
+✅ Wallet connection (Phantom, Solflare, etc.)
+✅ Email/SMS authentication
+✅ Embedded wallet creation
+✅ User session management
+Trading (0x)
+✅ Token swapping interface
+✅ DEX aggregation for best prices
+✅ Slippage protection
+Portfolio Tracking (Zerion)
+✅ Wallet performance charts
+✅ Transaction history
+✅ Token balance tracking
+✅ DeFi position monitoring
+NFT Support (Helius)
+✅ NFT portfolio viewer
+✅ Collection analytics
+✅ Metadata display
+✅ Transaction history
+Architecture Overview
+The starter kit follows modern web development best practices:
+
+Frontend: Next.js 14 with App Router and TypeScript
+Styling: Tailwind CSS with shadcn/ui components
+State Management: React hooks and context
+Blockchain: Solana Web3.js with wallet adapters
+API Integration: Pre-configured clients for all services
+Customization
+The starter kit is designed to be easily customizable:
+
+Branding: Update colors, fonts, and logos in tailwind.config.ts
+Features: Enable/disable specific integrations in the config
+UI Components: Extend or replace shadcn/ui components
+Business Logic: Add your unique features on top of the foundation
+Getting Help
+Documentation: Each integration includes detailed setup guides
+Community: Join our Discord for support
+Issues: Report problems on GitHub
+Why Use the Starter Kit?
+Building a Solana app from scratch requires integrating multiple complex services. The starter kit eliminates this friction by providing:
+
+Faster Time to Market: Skip weeks of infrastructure setup
+Best Practices: Pre-configured with optimal settings
+Proven Integrations: Battle-tested by production apps
+Easy Onboarding: Get users engaged from day one with existing social connections
+Next Steps
+Once you have the starter kit running:
+
+Explore the Code: Understand how each integration works
+Customize the UI: Make it match your brand and vision
+Add Your Features: Build on top of the solid foundation
+Deploy: Use Vercel or your preferred hosting platform
+Ready to build something amazing? Get the starter kit →
+
+Need help with Tapestry integration? Continue to our Quickstart Guide for detailed API documentation.
+
+
+Next
+Quickstart
+
+Quickstart
+You can get set up building with Tapestry in just 9 minutes with this quickstart guide. You can use either the socialfi NPM package (recommended for easier integration) or call the API directly.
+
+Don't Have an App Yet?
+🚀 Try the Solana Starter Kit first!
+
+If you're starting from scratch, our starter kit provides a complete Solana app template with Tapestry social features, wallet authentication, token swapping, and more - all pre-configured and ready to run in minutes.
+
+Already have an app? Continue below to integrate Tapestry's social features.
+
+Get Your API Key
+If you're integrating Tapestry into an existing app:
+
+Get your Tapestry API Key
+Set a namespace for your app. Each namespace is unique and helps distinguish your app's profiles, follows, content, likes, etc from those of the other apps built on Tapestry.
+That's it. Now you have what you need to start building!
+Install the Socialfi Package (Recommended)
+We recommend using the socialfi package as it provides a simpler, more convenient way to interact with Tapestry:
+
+npm install socialfi
+# or
+yarn add socialfi
+# or
+pnpm add socialfi
+
+Initialize the Client
+Set up your Tapestry client:
+
+Using the Socialfi Package
+import { SocialFi } from 'socialfi';
+
+const API_URL = 'https://api.usetapestry.dev/v1/'; // tapestry prod URL
+// const API_URL = 'https://api.dev.usetapestry.dev/v1/'; // tapestry dev URL
+
+const API_KEY = process.env.TAPESTRY_API_KEY; // Get your API key from https://app.usetapestry.dev/
+
+const client = new SocialFi({
+  baseURL: API_URL,
+  apiKey: API_KEY,
+});
+
+
+Using the API Directly
+If you prefer to call the API directly without the socialfi package, you can use fetch or your preferred HTTP client.
+
+Create Your First Profile
+Let's start by creating an onchain profile:
+
+Using the Socialfi Package
+async function createProfile() {
+  try {
+    const profile = await client.profiles.findOrCreateCreate(
+      {
+        apiKey: API_KEY,
+      },
+      {
+        walletAddress: 'YOUR_WALLET_ADDRESS',
+        username: 'johndoe',
+        bio: 'Hello World! This is my first Tapestry profile.',
+        blockchain: 'SOLANA',
+        execution: 'FAST_UNCONFIRMED'
+      }
+    );
+    console.log('Profile created:', profile);
+    return profile;
+  } catch (error) {
+    console.error('Error creating profile:', error);
+  }
+}
+
+Using the API Directly
+async function createProfile() {
+  try {
+    const response = await fetch(
+      'https://api.usetapestry.dev/v1/profiles/findOrCreate?apiKey=YOUR_API_KEY',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          walletAddress: 'YOUR_WALLET_ADDRESS',
+          username: 'johndoe',
+          bio: 'Hello World! This is my first Tapestry profile.',
+          blockchain: 'SOLANA',
+          execution: 'FAST_UNCONFIRMED'
+        }),
+      }
+    );
+    
+    const profile = await response.json();
+    console.log('Profile created:', profile);
+    return profile;
+  } catch (error) {
+    console.error('Error creating profile:', error);
+  }
+}
+
+What's Next?
+Now that you have a basic setup, you can explore more features:
+
+Create User Profiles - Learn more about profile creation and management
+Implement Follows - Add follow/unfollow functionality
+Add Content Creation - Let users create and share posts
+Build Comments - Enable discussions on content
+Implement Likes - Add engagement through likes
+Ready to dive deeper? Check out our complete documentation!
+
+
+Next
+Creating a User Profile
+
+
+Creating a User Profile
+Create a Profile on Your Graph
+The first step in most apps on Tapestry is creating composable user identities. This is achieved through profile creation and the findOrCreate endpoint.
+
+Each profile on Tapestry is namespaced to a specific app.
+
+We recommend passing in at minimum a username and a walletAddress in your findOrCreate request. This will create a user profile on your graph and connect it to the user's wallet. The connection between the wallet and profile enables the interoperation of profiles across different apps on Tapestry. Without a wallet address, you will be unable to access features that surface suggested social connections or speed up onboarding through profile imports.
+
+For additional granularity, you can also pass in an id parameter (for example, a uuid). If you do not specify an id, the API will automatically set the id to the same value as the username.
+
+Other Parameters
+blockchain refers to the chain the public key is on. If you leave it blank, it will be set to Solana.
+
+execution refers to the methodology with which the onchain transaction will be processed. For more information on the different execution methods, see here. The default execution method is FAST_UNCONFIRMED.
+
+FAST_UNCONFIRMED performs the write and returns a 200 before the onchain transaction has landed, while optimistically trying to land the onchain transaction in the background. This is the fastest roundtrip, with average times of under 1s.
+QUICK_SIGNATURE returns a transaction signature for the onchain transaction, but does not attempt to confirm it. This option is best if you want to use your own confirmation logic.
+CONFIRMED_AND_PARSED waits for the onchain transaction to be sent and confirmed before returning a 200. This is the slowest execution method, with roundtrip times for 200 responses averaging 15s.
+Using the Socialfi Package (Recommended)
+We recommend using the socialfi package as it provides a simpler, more convenient way to interact with Tapestry. However, you can also call the API directly if you prefer more control.
+
+First, install and initialize the socialfi package:
+
+npm install socialfi
+
+import { SocialFi } from 'socialfi';
+
+const API_URL = 'https://api.usetapestry.dev/v1/'; // tapestry prod URL
+// const API_URL = 'https://api.dev.usetapestry.dev/v1/'; // tapestry dev URL
+
+const API_KEY = process.env.TAPESTRY_API_KEY; // Get your API key from https://app.usetapestry.dev/
+
+const client = new SocialFi({
+  baseURL: API_URL,
+  apiKey: API_KEY,
+});
+
+// Create a profile
+try {
+  const profile = await client.profiles.findOrCreateCreate(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      walletAddress: 'WALLET_ADDRESS_HERE',
+      username: 'username_here',
+      id: 'arbitrary_uuid_or_leave_blank',
+      bio: 'User bio here',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED',
+      customProperties: [
+        {
+          key: 'profileImage',
+          value: 'https://example.com/image.jpg'
+        },
+        {
+          key: 'location',
+          value: 'San Francisco, CA'
+        }
+      ]
+    }
+  );
+  console.log('Profile created:', profile);
+} catch (error) {
+  console.error('Error creating profile:', error);
+}
+
+
+Using the API Directly
+If you prefer to call the API directly without the socialfi package, you can use fetch:
+
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/findOrCreate?apiKey=YOUR_API_KEY',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        walletAddress: 'WALLET_ADDRESS_HERE',
+        username: 'username_here',
+        id: 'arbitrary_uuid_or_leave_blank',
+        bio: 'User bio here',
+        blockchain: 'SOLANA',
+        execution: 'FAST_UNCONFIRMED',
+        customProperties: [
+          {
+            key: 'profileImage',
+            value: 'https://example.com/image.jpg'
+          },
+          {
+            key: 'location',
+            value: 'San Francisco, CA'
+          }
+        ]
+      }),
+    }
+  );
+  
+  const profile = await response.json();
+  console.log('Profile created:', profile);
+} catch (error) {
+  console.error('Error creating profile:', error);
+}
+
+If you want to store additional information, you can pass in any data as JSON key-value pairs in the customProperties field.
+
+Once the code executes, you can check the status in the visualizer at https://app.usetapestry.dev/visualize or with a GET request to the profile endpoint.
+
+Read Profile
+To read this information back, use the following. Put the profile's id in the GET request:
+
+Using Socialfi Package
+try {
+  const profile = await client.profiles.getProfile(
+    {
+      apiKey: API_KEY,
+      profileId: 'USER_PROFILE_ID_HERE'
+    }
+  );
+  console.log('Profile data:', profile);
+} catch (error) {
+  console.error('Error fetching profile:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/USER_PROFILE_ID_HERE?apiKey=YOUR_API_KEY'
+  );
+  const profile = await response.json();
+  console.log('Profile data:', profile);
+} catch (error) {
+  console.error('Error fetching profile:', error);
+}
+
+
+This will return everything in the profile node you just created. Here's an example response:
+
+{
+  "profile": {
+    "id": "user_profile",
+    "username": "user_profile",
+    "bio": "User bio here",
+    "walletAddress": "WALLET_ADDRESS_HERE",
+    "blockchain": "SOLANA",
+    "namespace": "your_namespace",
+    "customProperties": {
+      "profileImage": "https://example.com/image.jpg",
+      "location": "San Francisco, CA"
+    },
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  },
+  "socialCounts": {
+    "followers": 0,
+    "following": 0,
+    "posts": 0,
+    "likes": 0
+  }
+}
+
+Try creating a second profile. In the next guide, we'll walk through how to connect them on your graph.
+
+
+Next
+Writing Follows to Your Graph
+
+
+Writing Follows to Your Graph
+Follows represent a follow relationship between two users. Creating follows is easy. Simply pass in the id or the username of the user creating the follow (i.e. the follower) into the startId field, and id or the username of the follow recipient (i.e. the followee) into the endId field. Use the same id you used when creating the profile.
+
+You can use either the socialfi package (recommended for easier integration) or call the API directly.
+
+Installing and Setting Up the Socialfi Package (Recommended)
+We recommend using the socialfi package as it simplifies API interactions:
+
+npm install socialfi
+
+import { SocialFi } from 'socialfi';
+
+const API_URL = 'https://api.usetapestry.dev/v1/'; // tapestry prod URL
+// const API_URL = 'https://api.dev.usetapestry.dev/v1/'; // tapestry dev URL
+
+const API_KEY = process.env.TAPESTRY_API_KEY; // Get your API key from https://app.usetapestry.dev/
+
+const client = new SocialFi({
+  baseURL: API_URL,
+  apiKey: API_KEY,
+});
+
+
+Here's an example command that makes user marcus follow user nehemiah.
+
+Using the Socialfi Package
+// Make 'marcus' follow 'nehemiah'
+try {
+  const followResult = await client.followers.postFollowers(
+    { 
+      apiKey: API_KEY 
+    },
+    {
+      startId: 'marcus',
+      endId: 'nehemiah',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Follow created successfully:', followResult);
+} catch (error) {
+  console.error('Error creating follow:', error);
+}
+
+Using the API Directly
+// Make 'marcus' follow 'nehemiah'
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/followers?apiKey=YOUR_API_KEY', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      startId: 'marcus',
+      endId: 'nehemiah',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const followResult = await response.json();
+  console.log('Follow created successfully:', followResult);
+} catch (error) {
+  console.error('Error creating follow:', error);
+}
+
+
+Checking Follow Status
+To check if the follow succeeded, you can GET the followers count of the user who received the follow. In this example, we'll ask for nehemiah's followers count:
+
+Using the Socialfi Package
+// Get nehemiah's follower count
+try {
+  const followerCountData = await client.followers.getFollowersCount(
+    {
+      apiKey: API_KEY,
+      profileId: 'nehemiah'
+    }
+  );
+  console.log(`nehemiah has ${followerCountData.count} followers`);
+} catch (error) {
+  console.error('Error fetching follower count:', error);
+}
+
+Using the API Directly
+// Get nehemiah's follower count
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/followers/nehemiah/count?apiKey=YOUR_API_KEY'
+  );
+  const followerCountData = await response.json();
+  console.log(`nehemiah has ${followerCountData.count} followers`);
+} catch (error) {
+  console.error('Error fetching follower count:', error);
+}
+
+
+and you can also check the following count of the user who performed the follow. In this example, we'll ask for marcus's following count:
+
+Using the Socialfi Package
+// Get marcus's following count
+try {
+  const followingCountData = await client.followers.getFollowingCount(
+    {
+      apiKey: API_KEY,
+      profileId: 'marcus'
+    }
+  );
+  console.log(`marcus is following ${followingCountData.count} users`);
+} catch (error) {
+  console.error('Error fetching following count:', error);
+}
+
+Using the API Directly
+// Get marcus's following count
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/following/marcus/count?apiKey=YOUR_API_KEY'
+  );
+  const followingCountData = await response.json();
+  console.log(`marcus is following ${followingCountData.count} users`);
+} catch (error) {
+  console.error('Error fetching following count:', error);
+}
+
+
+Unfollowing Users
+To unfollow a user, you can use the unfollow endpoint:
+
+Using the Socialfi Package
+// Make 'marcus' unfollow 'nehemiah'
+try {
+  const unfollowResult = await client.followers.deleteFollower(
+    { 
+      apiKey: API_KEY 
+    },
+    {
+      startId: 'marcus',
+      endId: 'nehemiah',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Unfollow successful:', unfollowResult);
+} catch (error) {
+  console.error('Error unfollowing user:', error);
+}
+
+Using the API Directly
+// Make 'marcus' unfollow 'nehemiah'
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/followers?apiKey=YOUR_API_KEY', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      startId: 'marcus',
+      endId: 'nehemiah',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const unfollowResult = await response.json();
+  console.log('Unfollow successful:', unfollowResult);
+} catch (error) {
+  console.error('Error unfollowing user:', error);
+}
+
+
+Getting Follow Lists
+You can retrieve lists of followers and following users:
+
+Get Followers List
+Using the Socialfi Package
+try {
+  const followers = await client.followers.getFollowers(
+    {
+      apiKey: API_KEY,
+      profileId: 'nehemiah',
+      limit: 20,
+      offset: 0
+    }
+  );
+  console.log('Nehemiah\'s followers:', followers);
+} catch (error) {
+  console.error('Error fetching followers:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/followers/nehemiah?apiKey=YOUR_API_KEY&limit=20&offset=0'
+  );
+  const followers = await response.json();
+  console.log('Nehemiah\'s followers:', followers);
+} catch (error) {
+  console.error('Error fetching followers:', error);
+}
+
+
+Get Following List
+Using the Socialfi Package
+try {
+  const following = await client.followers.getFollowing(
+    {
+      apiKey: API_KEY,
+      profileId: 'marcus',
+      limit: 20,
+      offset: 0
+    }
+  );
+  console.log('Marcus is following:', following);
+} catch (error) {
+  console.error('Error fetching following list:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/following/marcus?apiKey=YOUR_API_KEY&limit=20&offset=0'
+  );
+  const following = await response.json();
+  console.log('Marcus is following:', following);
+} catch (error) {
+  console.error('Error fetching following list:', error);
+}
+
+
+Checking Follow Relationships
+To check if one user follows another:
+
+Using the Socialfi Package
+try {
+  const followStatus = await client.followers.checkFollowStatus(
+    {
+      apiKey: API_KEY,
+      followerId: 'marcus',
+      followeeId: 'nehemiah'
+    }
+  );
+  console.log('Marcus follows Nehemiah:', followStatus.isFollowing);
+} catch (error) {
+  console.error('Error checking follow status:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/followers/check?apiKey=YOUR_API_KEY&followerId=marcus&followeeId=nehemiah'
+  );
+  const followStatus = await response.json();
+  console.log('Marcus follows Nehemiah:', followStatus.isFollowing);
+} catch (error) {
+  console.error('Error checking follow status:', error);
+}
+
+
+Response Example
+{
+  "isFollowing": true,
+  "followId": "follow-123456789",
+  "followedAt": "2024-01-15T10:30:00Z"
+}
+
+Bulk Follow Operations
+For bulk follow operations, you can follow multiple users at once:
+
+Using the Socialfi Package
+try {
+  const bulkFollowResult = await client.followers.bulkFollow(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      startId: 'marcus',
+      endIds: ['nehemiah', 'alice', 'bob'],
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Bulk follow results:', bulkFollowResult);
+} catch (error) {
+  console.error('Error in bulk follow:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/followers/bulk?apiKey=YOUR_API_KEY', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      startId: 'marcus',
+      endIds: ['nehemiah', 'alice', 'bob'],
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const bulkFollowResult = await response.json();
+  console.log('Bulk follow results:', bulkFollowResult);
+} catch (error) {
+  console.error('Error in bulk follow:', error);
+}
+
+
+Example Response Structures
+Followers/Following List Response
+{
+  "users": [
+    {
+      "profile": {
+        "id": "marcus",
+        "username": "marcus",
+        "walletAddress": "ABC123...",
+        "customProperties": {
+          "bio": "Software developer and crypto enthusiast",
+          "profileImage": "https://example.com/marcus.jpg"
+        }
+      },
+      "followRelation": {
+        "id": "follow-123456789",
+        "createdAt": "2024-01-15T10:30:00Z"
+      },
+      "socialCounts": {
+        "followers": 250,
+        "following": 180
+      }
+    }
+  ],
+  "pagination": {
+    "total": 25,
+    "limit": 20,
+    "offset": 0,
+    "hasMore": true
+  }
+}
+
+Follow Count Response
+{
+  "profileId": "nehemiah",
+  "count": 25,
+  "lastUpdated": "2024-01-15T11:30:00Z"
+}
+
+Best Practices
+When implementing follow functionality:
+
+Mutual Follows: Consider implementing logic to detect mutual follows for enhanced social features
+Rate Limiting: Implement rate limiting to prevent spam following
+Notifications: Send notifications when users gain new followers
+Privacy Settings: Respect user privacy settings regarding follow visibility
+Bulk Operations: Use bulk operations when possible to reduce API calls
+Error Handling: Handle cases where users try to follow themselves or follow the same user multiple times
+UI Feedback: Provide immediate UI feedback with optimistic updates
+Follow Suggestions: Use the social graph to suggest new users to follow
+
+
+Next
+Creating a Profile UI
+
+Creating a Profile UI
+Here's how to create a simple profile page. We'll use GET profile, GET followers, and GET following to display information about a user and their social connections. You can use either the socialfi package (recommended for ease of use) or call the API directly.
+
+Installing and Setting Up the Socialfi Package (Recommended)
+We recommend using the socialfi package as it simplifies the integration process:
+
+npm install socialfi
+
+import { SocialFi } from 'socialfi';
+
+const API_URL = 'https://api.usetapestry.dev/v1/'; // tapestry prod URL
+// const API_URL = 'https://api.dev.usetapestry.dev/v1/'; // tapestry dev URL
+
+const API_KEY = process.env.TAPESTRY_API_KEY; // Get your API key from https://app.usetapestry.dev/
+
+const client = new SocialFi({
+  baseURL: API_URL,
+  apiKey: API_KEY,
+});
+
+
+Getting Profile Information
+To get their username and profile information, we can pass their id or username to the profile endpoint:
+
+Using the Socialfi Package
+try {
+  const profile = await client.profiles.getProfile(
+    {
+      apiKey: API_KEY,
+      profileId: 'ID_OR_USERNAME_HERE'
+    }
+  );
+  console.log('Profile data:', profile);
+} catch (error) {
+  console.error('Error fetching profile:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/ID_OR_USERNAME_HERE?apiKey=YOUR_API_KEY'
+  );
+  const profile = await response.json();
+  console.log('Profile data:', profile);
+} catch (error) {
+  console.error('Error fetching profile:', error);
+}
+
+
+Updating Profile Information
+Let's imagine our UI has a field for users to update their bio and profile picture. We can add these to their profile on the protocol using the update profile endpoint:
+
+Using the Socialfi Package
+try {
+  const updatedProfile = await client.profiles.updateProfile(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      profileId: 'USER_ID_HERE',
+      customProperties: [
+        {
+          key: 'bio',
+          value: 'Updated bio text here'
+        },
+        {
+          key: 'profileImage',
+          value: 'https://example.com/new-profile-image.jpg'
+        },
+        {
+          key: 'location',
+          value: 'San Francisco, CA'
+        }
+      ],
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Profile updated:', updatedProfile);
+} catch (error) {
+  console.error('Error updating profile:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/profiles/update?apiKey=YOUR_API_KEY', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      profileId: 'USER_ID_HERE',
+      customProperties: [
+        {
+          key: 'bio',
+          value: 'Updated bio text here'
+        },
+        {
+          key: 'profileImage',
+          value: 'https://example.com/new-profile-image.jpg'
+        },
+        {
+          key: 'location',
+          value: 'San Francisco, CA'
+        }
+      ],
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const updatedProfile = await response.json();
+  console.log('Profile updated:', updatedProfile);
+} catch (error) {
+  console.error('Error updating profile:', error);
+}
+
+
+Getting Complete Profile Information
+Now, we will get all of this information back when we call GET profile again:
+
+username
+bio
+profile image
+following count
+followers count
+custom properties
+The profile response will include:
+
+{
+  "profile": {
+    "id": "user_profile",
+    "username": "johndoe",
+    "walletAddress": "WALLET_ADDRESS_HERE",
+    "blockchain": "SOLANA",
+    "customProperties": {
+      "bio": "Updated bio text here",
+      "profileImage": "https://example.com/new-profile-image.jpg",
+      "location": "San Francisco, CA"
+    },
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:35:00Z"
+  },
+  "socialCounts": {
+    "followers": 125,
+    "following": 89,
+    "posts": 42,
+    "likes": 367
+  }
+}
+
+Getting Followers and Following Lists
+To enable users to click inside the following & followers counts and get information on each user, we can GET following and GET followers.
+
+Get Followers
+Using the Socialfi Package
+try {
+  const followers = await client.followers.getFollowers(
+    {
+      apiKey: API_KEY,
+      profileId: 'USER_ID_HERE',
+      limit: 20,
+      offset: 0
+    }
+  );
+  console.log('Followers:', followers);
+} catch (error) {
+  console.error('Error fetching followers:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/followers/USER_ID_HERE?apiKey=YOUR_API_KEY&limit=20&offset=0'
+  );
+  const followers = await response.json();
+  console.log('Followers:', followers);
+} catch (error) {
+  console.error('Error fetching followers:', error);
+}
+
+
+Get Following
+Using the Socialfi Package
+try {
+  const following = await client.followers.getFollowing(
+    {
+      apiKey: API_KEY,
+      profileId: 'USER_ID_HERE',
+      limit: 20,
+      offset: 0
+    }
+  );
+  console.log('Following:', following);
+} catch (error) {
+  console.error('Error fetching following:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/profiles/following/USER_ID_HERE?apiKey=YOUR_API_KEY&limit=20&offset=0'
+  );
+  const following = await response.json();
+  console.log('Following:', following);
+} catch (error) {
+  console.error('Error fetching following:', error);
+}
+
+
+These calls will return data in the following structure:
+
+{
+  "users": [
+    {
+      "profile": {
+        "id": "magiceden",
+        "username": "magiceden",
+        "walletAddress": "2qrWc9p5vatLH3kp4CiVXrdQ4V293d8qzmg4ziez6T4k",
+        "customProperties": {
+          "bio": "The leading NFT marketplace on Solana",
+          "profileImage": "https://example.com/magiceden-avatar.jpg"
+        }
+      },
+      "socialCounts": {
+        "followers": 50000,
+        "following": 250
+      }
+    },
+    {
+      "profile": {
+        "id": "idetssx",
+        "username": "idetssx",
+        "walletAddress": "DPpSMtNnvwNeYhECNv125pfXqYbB2BKbFXaBnpwUc8Js",
+        "customProperties": {
+          "bio": "Crypto enthusiast and developer",
+          "profileImage": "https://example.com/idetssx-avatar.jpg"
+        }
+      },
+      "socialCounts": {
+        "followers": 1500,
+        "following": 800
+      }
+    },
+    {
+      "profile": {
+        "id": "pumptothemoon",
+        "username": "pumptothemoon",
+        "walletAddress": "H2rVxNEiis9zkhxmjAsHrur3apwABxgKMAtj42P4YDDF",
+        "customProperties": {
+          "bio": "To the moon! 🚀",
+          "profileImage": "https://example.com/pump-avatar.jpg"
+        }
+      },
+      "socialCounts": {
+        "followers": 5000,
+        "following": 2000
+      }
+    }
+  ],
+  "pagination": {
+    "total": 125,
+    "limit": 20,
+    "offset": 0,
+    "hasMore": true
+  }
+}
+
+Building the Profile UI
+From here, we can use the id or username to hyperlink to each additional user profile, enhancing discoverability inside our app.
+
+Here's a complete example of how to build a profile page component using the socialfi package:
+
+async function buildProfilePage(profileId: string) {
+  try {
+    // Get main profile information
+    const profileData = await client.profiles.getProfile({
+      apiKey: API_KEY,
+      profileId: profileId
+    });
+
+    // Get followers list
+    const followersData = await client.followers.getFollowers({
+      apiKey: API_KEY,
+      profileId: profileId,
+      limit: 10
+    });
+
+    // Get following list
+    const followingData = await client.followers.getFollowing({
+      apiKey: API_KEY,
+      profileId: profileId,
+      limit: 10
+    });
+
+    // Build your UI with this data
+    const profilePageData = {
+      profile: profileData.profile,
+      socialCounts: profileData.socialCounts,
+      followers: followersData.users,
+      following: followingData.users
+    };
+
+    return profilePageData;
+  } catch (error) {
+    console.error('Error building profile page:', error);
+    throw error;
+  }
+}
+
+Best Practices
+When building profile pages:
+
+Pagination: Implement pagination for followers/following lists to handle large numbers
+Loading States: Show loading indicators while fetching data
+Error Handling: Gracefully handle API errors and network issues
+Caching: Consider caching profile data to improve performance
+Real-time Updates: Consider implementing real-time updates for social counts
+Privacy: Respect user privacy settings and permissions
+Responsive Design: Ensure your profile UI works well on all devices
+
+Next
+Creating and Managing Content
+
+
+Creating and Managing Content
+In a social media app, content creation and management are crucial features. Tapestry provides powerful endpoints to handle these operations efficiently. This guide will walk you through creating, updating, and deleting posts using the socialfi package or the API directly. We recommend using the socialfi package as it's simpler and handles much of the complexity for you.
+
+Installing and Setting Up the Socialfi Package (Recommended)
+We recommend using the socialfi package for easier integration:
+
+npm install socialfi
+
+import { SocialFi } from 'socialfi';
+
+const API_URL = 'https://api.usetapestry.dev/v1/'; // tapestry prod URL
+// const API_URL = 'https://api.dev.usetapestry.dev/v1/'; // tapestry dev URL
+
+const API_KEY = process.env.TAPESTRY_API_KEY; // Get your API key from https://app.usetapestry.dev/
+
+const client = new SocialFi({
+  baseURL: API_URL,
+  apiKey: API_KEY,
+});
+
+
+Creating a Post
+The first step in most social media apps is allowing users to create posts. This is achieved through the content creation endpoint.
+
+Using the Socialfi Package
+Here's an example of how to create a new post:
+
+try {
+  const newPost = await client.contents.findOrCreateCreate(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      profileId: 'user123',
+      content: 'Hello world! This is my first post on Tapestry.',
+      contentType: 'text',
+      customProperties: [
+        {
+          key: 'title',
+          value: 'My First Post'
+        },
+        {
+          key: 'url',
+          value: 'example.com/post1'
+        },
+        {
+          key: 'tags',
+          value: 'introduction,hello-world'
+        }
+      ],
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Post created:', newPost);
+} catch (error) {
+  console.error('Error creating post:', error);
+}
+
+Using the API Directly
+If you prefer to call the API directly:
+
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/contents/create?apiKey=YOUR_API_KEY', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      profileId: 'user123',
+      content: 'Hello world! This is my first post on Tapestry.',
+      contentType: 'text',
+      customProperties: [
+        {
+          key: 'title',
+          value: 'My First Post'
+        },
+        {
+          key: 'url',
+          value: 'example.com/post1'
+        },
+        {
+          key: 'tags',
+          value: 'introduction,hello-world'
+        }
+      ],
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const newPost = await response.json();
+  console.log('Post created:', newPost);
+} catch (error) {
+  console.error('Error creating post:', error);
+}
+
+
+In this example:
+
+profileId represents the user creating the post
+content is the main text content of the post
+customProperties is an array of key-value pairs for additional metadata
+contentType specifies the type of content (text, image, video, etc.)
+Reading Posts
+To retrieve posts, you can use various methods:
+
+Get a specific post by ID
+Using Socialfi Package
+try {
+  const post = await client.contents.getContent(
+    {
+      apiKey: API_KEY,
+      contentId: 'post123'
+    }
+  );
+  console.log('Post data:', post);
+} catch (error) {
+  console.error('Error fetching post:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/contents/post123?apiKey=YOUR_API_KEY'
+  );
+  const post = await response.json();
+  console.log('Post data:', post);
+} catch (error) {
+  console.error('Error fetching post:', error);
+}
+
+Get posts by a specific user
+Using Socialfi Package
+try {
+  const userPosts = await client.contents.getContentsByProfile(
+    {
+      apiKey: API_KEY,
+      profileId: 'user123',
+      limit: 10,
+      offset: 0
+    }
+  );
+  console.log('User posts:', userPosts);
+} catch (error) {
+  console.error('Error fetching user posts:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/contents/profile/user123?apiKey=YOUR_API_KEY&limit=10&offset=0'
+  );
+  const userPosts = await response.json();
+  console.log('User posts:', userPosts);
+} catch (error) {
+  console.error('Error fetching user posts:', error);
+}
+
+
+Updating a Post
+Sometimes users may want to edit their posts. You can use the content update endpoint for this purpose:
+
+Using Socialfi Package
+try {
+  const updatedPost = await client.contents.updateContent(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      id: 'post123',
+      content: 'Updated content: Hello, world! This is my edited post.',
+      customProperties: [
+        {
+          key: 'title',
+          value: 'My Updated Post'
+        },
+        {
+          key: 'edited',
+          value: 'true'
+        }
+      ],
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Post updated:', updatedPost);
+} catch (error) {
+  console.error('Error updating post:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/contents/update?apiKey=YOUR_API_KEY', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      id: 'post123',
+      content: 'Updated content: Hello, world! This is my edited post.',
+      customProperties: [
+        {
+          key: 'title',
+          value: 'My Updated Post'
+        },
+        {
+          key: 'edited',
+          value: 'true'
+        }
+      ],
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const updatedPost = await response.json();
+  console.log('Post updated:', updatedPost);
+} catch (error) {
+  console.error('Error updating post:', error);
+}
+
+
+Here, id is the unique identifier of the post you want to update.
+
+Deleting a Post
+To allow users to delete their posts, use the content deletion endpoint:
+
+Using Socialfi Package
+try {
+  const deletionResult = await client.contents.deleteContent(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      id: 'post123',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Post deleted:', deletionResult);
+} catch (error) {
+  console.error('Error deleting post:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/contents/delete?apiKey=YOUR_API_KEY', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      id: 'post123',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const deletionResult = await response.json();
+  console.log('Post deleted:', deletionResult);
+} catch (error) {
+  console.error('Error deleting post:', error);
+}
+
+
+Again, id is the unique identifier of the post to be deleted.
+
+Execution Methods
+When creating, updating, or deleting content, you can specify an execution method. This determines how the transaction is processed on the blockchain. For more information on execution methods, see our Execution Methods documentation.
+
+The available execution methods are:
+
+FAST_UNCONFIRMED - Fastest response time (default)
+QUICK_SIGNATURE - Returns transaction signature
+CONFIRMED_AND_PARSED - Waits for full blockchain confirmation
+Example Response Structure
+Here's what a typical content response looks like:
+
+{
+  "content": {
+    "id": "post123",
+    "profileId": "user123",
+    "content": "Hello world! This is my first post on Tapestry.",
+    "contentType": "text",
+    "blockchain": "SOLANA",
+    "customProperties": {
+      "title": "My First Post",
+      "url": "example.com/post1",
+      "tags": "introduction,hello-world"
+    },
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  },
+  "engagement": {
+    "likes": 0,
+    "comments": 0,
+    "shares": 0
+  }
+}
+
+Best Practices
+By leveraging these content endpoints with the socialfi package or API directly, you can build a robust and interactive social media application on Tapestry. Remember to:
+
+Handle errors gracefully and provide user feedback
+Implement appropriate user interfaces for a seamless experience
+Use custom properties to store additional metadata
+Consider rate limiting and API usage best practices
+Validate user input before sending to the API
+
+Next
+Adding Likes to Content or Profiles
+
+
+Adding Likes to Content or Profiles
+Adding Likes to Your Social Graph
+Likes are a fundamental engagement mechanism in social applications. The Tapestry Likes API allows users to express appreciation for content and interact with posts. You can use either the socialfi package (recommended for simpler integration) or call the API directly.
+
+Installing and Setting Up the Socialfi Package (Recommended)
+We recommend using the socialfi package as it provides a cleaner, more maintainable approach:
+
+npm install socialfi
+
+import { SocialFi } from 'socialfi';
+
+const API_URL = 'https://api.usetapestry.dev/v1/'; // tapestry prod URL
+// const API_URL = 'https://api.dev.usetapestry.dev/v1/'; // tapestry dev URL
+
+const API_KEY = process.env.TAPESTRY_API_KEY; // Get your API key from https://app.usetapestry.dev/
+
+const client = new SocialFi({
+  baseURL: API_URL,
+  apiKey: API_KEY,
+});
+
+
+Creating a Like
+To allow users to like a post or content, use the like creation endpoint:
+
+Using the Socialfi Package
+try {
+  const newLike = await client.likes.createLike(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      profileId: 'user123', // The ID of the profile creating the like
+      contentId: 'post456', // The ID of the content being liked
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Like created:', newLike);
+} catch (error) {
+  console.error('Error creating like:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/likes?apiKey=YOUR_API_KEY', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      profileId: 'user123',
+      contentId: 'post456',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const newLike = await response.json();
+  console.log('Like created:', newLike);
+} catch (error) {
+  console.error('Error creating like:', error);
+}
+
+
+Request Parameters
+Field	Type	Description
+profileId	string	The ID of the profile creating the like.
+contentId	string	The ID of the content being liked.
+blockchain	string	The blockchain to use (default: SOLANA)
+execution	string	Execution method (default: FAST_UNCONFIRMED)
+Response Example
+{
+  "like": {
+    "id": "like-1234567890",
+    "profileId": "user123",
+    "contentId": "post456",
+    "blockchain": "SOLANA",
+    "createdAt": "2024-01-15T10:30:00Z"
+  },
+  "user": {
+    "id": "user123",
+    "username": "johndoe",
+    "profileImage": "https://example.com/avatar.jpg"
+  }
+}
+
+Removing a Like (Unlike)
+To allow users to unlike content they previously liked:
+
+Using the Socialfi Package
+try {
+  const result = await client.likes.deleteLike(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      profileId: 'user123',
+      contentId: 'post456',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Like removed:', result);
+} catch (error) {
+  console.error('Error removing like:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/likes?apiKey=YOUR_API_KEY', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      profileId: 'user123',
+      contentId: 'post456',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const result = await response.json();
+  console.log('Like removed:', result);
+} catch (error) {
+  console.error('Error removing like:', error);
+}
+
+
+Response Example
+{
+  "success": true,
+  "message": "Like removed successfully"
+}
+
+Getting Likes for Content
+To retrieve all likes for a specific piece of content:
+
+Using the Socialfi Package
+try {
+  const likes = await client.likes.getLikesByContent(
+    {
+      apiKey: API_KEY,
+      contentId: 'post456',
+      limit: 20,
+      offset: 0
+    }
+  );
+  console.log('Likes for content:', likes);
+} catch (error) {
+  console.error('Error fetching likes:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/likes/content/post456?apiKey=YOUR_API_KEY&limit=20&offset=0'
+  );
+  const likes = await response.json();
+  console.log('Likes for content:', likes);
+} catch (error) {
+  console.error('Error fetching likes:', error);
+}
+
+
+Query Parameters
+Parameter	Type	Description
+contentId	string	The ID of the content to get likes for.
+limit	number	Maximum number of likes to return.
+offset	number	Number of likes to skip.
+Response Example
+{
+  "likes": [
+    {
+      "like": {
+        "id": "like-1234567890",
+        "createdAt": "2024-01-15T10:30:00Z"
+      },
+      "user": {
+        "id": "user123",
+        "username": "johndoe",
+        "profileImage": "https://example.com/avatar1.jpg"
+      }
+    },
+    {
+      "like": {
+        "id": "like-0987654321",
+        "createdAt": "2024-01-15T11:00:00Z"
+      },
+      "user": {
+        "id": "user789",
+        "username": "janedoe",
+        "profileImage": "https://example.com/avatar2.jpg"
+      }
+    }
+  ],
+  "pagination": {
+    "total": 45,
+    "limit": 20,
+    "offset": 0,
+    "hasMore": true
+  },
+  "likeCount": 45
+}
+
+Getting Likes by User
+To retrieve all content that a specific user has liked:
+
+Using the Socialfi Package
+try {
+  const userLikes = await client.likes.getLikesByProfile(
+    {
+      apiKey: API_KEY,
+      profileId: 'user123',
+      limit: 10,
+      offset: 0
+    }
+  );
+  console.log('Content liked by user:', userLikes);
+} catch (error) {
+  console.error('Error fetching user likes:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/likes/profile/user123?apiKey=YOUR_API_KEY&limit=10&offset=0'
+  );
+  const userLikes = await response.json();
+  console.log('Content liked by user:', userLikes);
+} catch (error) {
+  console.error('Error fetching user likes:', error);
+}
+
+
+Response Example
+{
+  "likes": [
+    {
+      "like": {
+        "id": "like-1234567890",
+        "createdAt": "2024-01-15T10:30:00Z"
+      },
+      "content": {
+        "id": "post456",
+        "content": "Amazing post about blockchain technology!",
+        "author": {
+          "id": "user789",
+          "username": "contentcreator"
+        }
+      }
+    }
+  ],
+  "pagination": {
+    "total": 25,
+    "limit": 10,
+    "offset": 0,
+    "hasMore": true
+  }
+}
+
+Checking if User Liked Content
+To check if a specific user has liked a specific piece of content:
+
+Using the Socialfi Package
+try {
+  const hasLiked = await client.likes.checkUserLikedContent(
+    {
+      apiKey: API_KEY,
+      profileId: 'user123',
+      contentId: 'post456'
+    }
+  );
+  console.log('User has liked this content:', hasLiked.hasLiked);
+} catch (error) {
+  console.error('Error checking like status:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/likes/check?apiKey=YOUR_API_KEY&profileId=user123&contentId=post456'
+  );
+  const hasLiked = await response.json();
+  console.log('User has liked this content:', hasLiked.hasLiked);
+} catch (error) {
+  console.error('Error checking like status:', error);
+}
+
+
+Response Example
+{
+  "hasLiked": true,
+  "likeId": "like-1234567890",
+  "likedAt": "2024-01-15T10:30:00Z"
+}
+
+Like Counts
+To get just the like count for content without fetching all individual likes:
+
+Using the Socialfi Package
+try {
+  const likeCount = await client.likes.getLikeCount(
+    {
+      apiKey: API_KEY,
+      contentId: 'post456'
+    }
+  );
+  console.log('Like count:', likeCount.count);
+} catch (error) {
+  console.error('Error fetching like count:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/likes/count/post456?apiKey=YOUR_API_KEY'
+  );
+  const likeCount = await response.json();
+  console.log('Like count:', likeCount.count);
+} catch (error) {
+  console.error('Error fetching like count:', error);
+}
+
+Response Example
+{
+  "contentId": "post456",
+  "count": 45,
+  "lastUpdated": "2024-01-15T11:30:00Z"
+}
+
+Building Like Functionality
+Here's a complete example of how to implement like/unlike functionality in your app using the socialfi package:
+
+interface LikeButtonProps {
+  contentId: string;
+  currentUserId: string;
+}
+
+class LikeButton {
+  private contentId: string;
+  private currentUserId: string;
+  private isLiked: boolean = false;
+  private likeCount: number = 0;
+
+  constructor(props: LikeButtonProps) {
+    this.contentId = props.contentId;
+    this.currentUserId = props.currentUserId;
+    this.initializeLikeStatus();
+  }
+
+  async initializeLikeStatus() {
+    try {
+      // Check if user has liked this content
+      const likeStatus = await client.likes.checkUserLikedContent({
+        apiKey: API_KEY,
+        profileId: this.currentUserId,
+        contentId: this.contentId
+      });
+
+      // Get current like count
+      const likeCountData = await client.likes.getLikeCount({
+        apiKey: API_KEY,
+        contentId: this.contentId
+      });
+
+      this.isLiked = likeStatus.hasLiked;
+      this.likeCount = likeCountData.count;
+      
+      this.updateUI();
+    } catch (error) {
+      console.error('Error initializing like status:', error);
+    }
+  }
+
+  async toggleLike() {
+    try {
+      if (this.isLiked) {
+        // Unlike the content
+        await client.likes.deleteLike(
+          {
+            apiKey: API_KEY,
+          },
+          {
+            profileId: this.currentUserId,
+            contentId: this.contentId,
+            blockchain: 'SOLANA'
+          }
+        );
+        this.isLiked = false;
+        this.likeCount--;
+      } else {
+        // Like the content
+        await client.likes.createLike(
+          {
+            apiKey: API_KEY,
+          },
+          {
+            profileId: this.currentUserId,
+            contentId: this.contentId,
+            blockchain: 'SOLANA'
+          }
+        );
+        this.isLiked = true;
+        this.likeCount++;
+      }
+      
+      this.updateUI();
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      // Revert optimistic update on error
+      this.initializeLikeStatus();
+    }
+  }
+
+  private updateUI() {
+    // Update your UI elements here
+    console.log(`Like button - Liked: ${this.isLiked}, Count: ${this.likeCount}`);
+  }
+}
+
+Real-time Like Updates
+For real-time like updates, you can implement polling or use WebSocket connections:
+
+// Polling example
+async function pollLikeUpdates(contentId: string, intervalMs: number = 5000) {
+  setInterval(async () => {
+    try {
+      const likeCount = await client.likes.getLikeCount({
+        apiKey: API_KEY,
+        contentId: contentId
+      });
+      
+      // Update your UI with the new count
+      updateLikeCountInUI(contentId, likeCount.count);
+    } catch (error) {
+      console.error('Error polling like updates:', error);
+    }
+  }, intervalMs);
+}
+
+Best Practices
+When implementing likes functionality:
+
+Optimistic Updates: Update the UI immediately when a user clicks like/unlike, then sync with the server
+Debouncing: Implement debouncing to prevent rapid like/unlike actions that could spam the API
+Error Handling: Always handle API errors gracefully and revert optimistic updates when necessary
+Rate Limiting: Respect API rate limits to prevent service disruption
+Authentication: Ensure users are authenticated before allowing like actions
+Validation: Validate that content exists before allowing likes
+Privacy: Respect user privacy settings regarding like visibility
+Performance: Use pagination for like lists and implement lazy loading for better performance
+Accessibility: Ensure like buttons are accessible with proper ARIA labels and keyboard navigation
+
+Next
+Adding Comments to Content or Profiles
+
+
+Adding Comments to Content or Profiles
+Comments API
+The Comments API allows you to create, update, delete, and retrieve comments associated with content, enabling users to engage in discussions and share their thoughts on posts. You can use either the socialfi package (recommended for easier integration) or call the API directly.
+
+Installing and Setting Up the Socialfi Package (Recommended)
+We recommend using the socialfi package as it simplifies API interactions:
+
+npm install socialfi
+
+import { SocialFi } from 'socialfi';
+
+const API_URL = 'https://api.usetapestry.dev/v1/'; // tapestry prod URL
+// const API_URL = 'https://api.dev.usetapestry.dev/v1/'; // tapestry dev URL
+
+const API_KEY = process.env.TAPESTRY_API_KEY; // Get your API key from https://app.usetapestry.dev/
+
+const client = new SocialFi({
+  baseURL: API_URL,
+  apiKey: API_KEY,
+});
+
+
+Creating a Comment
+To allow users to comment on a post, use the comment creation endpoint:
+
+Using the Socialfi Package
+try {
+  const newComment = await client.comments.createComment(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      profileId: 'user123', // The ID of the profile creating the comment
+      contentId: 'post456', // The ID of the content being commented on
+      text: 'Great post! Thanks for sharing.',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Comment created:', newComment);
+} catch (error) {
+  console.error('Error creating comment:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/comments?apiKey=YOUR_API_KEY', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      profileId: 'user123',
+      contentId: 'post456',
+      text: 'Great post! Thanks for sharing.',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const newComment = await response.json();
+  console.log('Comment created:', newComment);
+} catch (error) {
+  console.error('Error creating comment:', error);
+}
+
+
+Request Parameters
+Field	Type	Description
+profileId	string	The ID of the profile creating the comment.
+contentId	string	The ID of the content being commented on.
+text	string	The text content of the comment.
+blockchain	string	The blockchain to use (default: SOLANA)
+execution	string	Execution method (default: FAST_UNCONFIRMED)
+Response Example
+{
+  "comment": {
+    "id": "comment-1234567890",
+    "profileId": "user123",
+    "contentId": "post456",
+    "text": "Great post! Thanks for sharing.",
+    "blockchain": "SOLANA",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  },
+  "author": {
+    "id": "user123",
+    "username": "johndoe",
+    "profileImage": "https://example.com/avatar.jpg"
+  }
+}
+
+Update a Comment
+If a user wants to edit their comment, use the comment update endpoint:
+
+Using the Socialfi Package
+try {
+  const updatedComment = await client.comments.updateComment(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      commentId: 'comment-1234567890',
+      text: 'Updated comment: Great post! Thanks for sharing this insight.',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Comment updated:', updatedComment);
+} catch (error) {
+  console.error('Error updating comment:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/comments/comment-1234567890?apiKey=YOUR_API_KEY', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text: 'Updated comment: Great post! Thanks for sharing this insight.',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const updatedComment = await response.json();
+  console.log('Comment updated:', updatedComment);
+} catch (error) {
+  console.error('Error updating comment:', error);
+}
+
+
+Request Parameters
+Field	Type	Description
+commentId	string	The ID of the comment to update.
+text	string	The updated text of the comment.
+blockchain	string	The blockchain to use
+execution	string	Execution method
+Response Example
+{
+  "comment": {
+    "id": "comment-1234567890",
+    "profileId": "user123",
+    "contentId": "post456",
+    "text": "Updated comment: Great post! Thanks for sharing this insight.",
+    "blockchain": "SOLANA",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:35:00Z"
+  }
+}
+
+Delete a Comment
+To allow users to delete their comments, use the comment deletion endpoint:
+
+Using the Socialfi Package
+try {
+  const deletionResult = await client.comments.deleteComment(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      commentId: 'comment-1234567890',
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }
+  );
+  console.log('Comment deleted:', deletionResult);
+} catch (error) {
+  console.error('Error deleting comment:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/comments/comment-1234567890?apiKey=YOUR_API_KEY', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      blockchain: 'SOLANA',
+      execution: 'FAST_UNCONFIRMED'
+    }),
+  });
+  
+  const deletionResult = await response.json();
+  console.log('Comment deleted:', deletionResult);
+} catch (error) {
+  console.error('Error deleting comment:', error);
+}
+
+
+Response Example
+{
+  "success": true,
+  "message": "Comment deleted successfully"
+}
+
+Get Comments by Content
+To retrieve comments about a specific post:
+
+Using the Socialfi Package
+try {
+  const comments = await client.comments.getCommentsByContent(
+    {
+      apiKey: API_KEY,
+      contentId: 'post456',
+      limit: 20,
+      offset: 0
+    }
+  );
+  console.log('Comments for post:', comments);
+} catch (error) {
+  console.error('Error fetching comments:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/comments?contentId=post456&limit=20&offset=0&apiKey=YOUR_API_KEY'
+  );
+  const comments = await response.json();
+  console.log('Comments for post:', comments);
+} catch (error) {
+  console.error('Error fetching comments:', error);
+}
+
+
+Query Parameters
+Parameter	Type	Description
+contentId	string	The ID of the content to get comments for.
+limit	number	Maximum number of comments to return.
+offset	number	Number of comments to skip.
+Response Example
+{
+  "comments": [
+    {
+      "comment": {
+        "id": "comment-1234567890",
+        "text": "Great content!",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "updatedAt": "2024-01-15T10:30:00Z"
+      },
+      "author": {
+        "id": "user123",
+        "username": "johndoe",
+        "profileImage": "https://example.com/avatar1.jpg"
+      }
+    },
+    {
+      "comment": {
+        "id": "comment-0987654321",
+        "text": "Thanks for sharing!",
+        "createdAt": "2024-01-15T11:00:00Z",
+        "updatedAt": "2024-01-15T11:00:00Z"
+      },
+      "author": {
+        "id": "user789",
+        "username": "janedoe",
+        "profileImage": "https://example.com/avatar2.jpg"
+      }
+    }
+  ],
+  "pagination": {
+    "total": 25,
+    "limit": 20,
+    "offset": 0,
+    "hasMore": true
+  }
+}
+
+Get Comments by Profile
+To retrieve comments authored by a specific user:
+
+Using the Socialfi Package
+try {
+  const userComments = await client.comments.getCommentsByProfile(
+    {
+      apiKey: API_KEY,
+      profileId: 'user123',
+      limit: 10,
+      offset: 0
+    }
+  );
+  console.log('Comments by user:', userComments);
+} catch (error) {
+  console.error('Error fetching user comments:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch(
+    'https://api.usetapestry.dev/v1/comments?profileId=user123&limit=10&offset=0&apiKey=YOUR_API_KEY'
+  );
+  const userComments = await response.json();
+  console.log('Comments by user:', userComments);
+} catch (error) {
+  console.error('Error fetching user comments:', error);
+}
+
+
+Query Parameters
+Parameter	Type	Description
+profileId	string	The ID of the profile to get comments from.
+limit	number	Maximum number of comments to return.
+offset	number	Number of comments to skip.
+Response Example
+{
+  "comments": [
+    {
+      "comment": {
+        "id": "comment-1234567890",
+        "text": "Great content!",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "updatedAt": "2024-01-15T10:30:00Z"
+      },
+      "content": {
+        "id": "post456",
+        "title": "Amazing Post Title",
+        "author": {
+          "id": "user789",
+          "username": "contentcreator"
+        }
+      }
+    }
+  ],
+  "pagination": {
+    "total": 15,
+    "limit": 10,
+    "offset": 0,
+    "hasMore": true
+  }
+}
+
+Authentication
+All comments endpoints require an API key to be provided in the request for authentication. Make sure to keep your API key secure and never expose it in client-side code.
+
+Error Handling
+In case of an error, the API will respond with an appropriate HTTP status code and an error message in the response body:
+
+{
+  "success": false,
+  "error": "Invalid comment ID provided",
+  "code": "INVALID_COMMENT_ID"
+}
+
+Best Practices
+When implementing comments functionality:
+
+Always validate user input before sending to the API
+Implement proper error handling and user feedback
+Consider implementing pagination for better performance
+Use rate limiting to prevent spam
+Validate that users can only edit/delete their own comments
+Consider implementing comment threading for nested discussions
+Implement content moderation as needed
+
+Next
+Using Find All Profiles to Enhance Onboarding
+
+
+Using Find All Profiles to Enhance Onboarding
+Using the Profiles Endpoint for Social Interoperation
+The Profiles endpoint is a powerful tool for developers looking to create a seamless onboarding experience. By leveraging this endpoint, you can retrieve all profiles associated with a user's wallet address across the Tapestry ecosystem, allowing for quick and easy profile setup in your app. You can use either the socialfi package (recommended for easier integration) or call the API directly.
+
+How It Works
+When a new user connects their wallet to your app, you can use this endpoint to:
+
+Fetch all profiles owned by the user's wallet address
+Display these profiles to the user
+Allow the user to import data from an existing profile
+This process significantly reduces friction in the onboarding flow, as users can quickly set up their profile using information they've already provided elsewhere in the Tapestry ecosystem.
+
+Installing and Setting Up the Socialfi Package (Recommended)
+We recommend using the socialfi package as it provides a simpler interface for API interactions:
+
+npm install socialfi
+
+import { SocialFi } from 'socialfi';
+
+const API_URL = 'https://api.usetapestry.dev/v1/'; // tapestry prod URL
+// const API_URL = 'https://api.dev.usetapestry.dev/v1/'; // tapestry dev URL
+
+const API_KEY = process.env.TAPESTRY_API_KEY; // Get your API key from https://app.usetapestry.dev/
+
+const client = new SocialFi({
+  baseURL: API_URL,
+  apiKey: API_KEY,
+});
+
+
+Using the Endpoint
+To fetch external profiles, use the profiles search functionality with the shouldIncludeExternalProfiles parameter set to true:
+
+Using the Socialfi Package
+try {
+  const profiles = await client.profiles.searchProfiles(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      walletAddress: 'wallet_address_here',
+      shouldIncludeExternalProfiles: true,
+      limit: 50,
+      offset: 0
+    }
+  );
+  console.log('User profiles across Tapestry:', profiles);
+} catch (error) {
+  console.error('Error fetching profiles:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/profiles/search?apiKey=YOUR_API_KEY&shouldIncludeExternalProfiles=true', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      walletAddress: 'wallet_address_here',
+      limit: 50,
+      offset: 0
+    }),
+  });
+  
+  const profiles = await response.json();
+  console.log('User profiles across Tapestry:', profiles);
+} catch (error) {
+  console.error('Error fetching profiles:', error);
+}
+
+
+This endpoint returns an array of Profile objects representing the profiles owned by the specified wallet address.
+
+Request Parameters
+Parameter	Type	Description
+walletAddress	string	The wallet address to find associated profiles for
+apiKey	string	Your Tapestry API key
+shouldIncludeExternalProfiles	boolean	Whether to include profiles from Tapestry apps outside your namespace
+limit	number	Maximum number of profiles to return (optional)
+offset	number	Number of profiles to skip (optional)
+Response
+The endpoint returns an array of profile objects. Each object contains details about a profile associated with the provided wallet address:
+
+{
+  "profiles": [
+    {
+      "id": "profile-123",
+      "username": "cryptoenthusiast",
+      "walletAddress": "WALLET_ADDRESS_HERE",
+      "blockchain": "SOLANA",
+      "namespace": "CryptoApp",
+      "customProperties": {
+        "bio": "Blockchain developer and NFT collector",
+        "profileImage": "https://example.com/profile.jpg",
+        "location": "San Francisco, CA",
+        "website": "https://cryptodev.example.com"
+      },
+      "socialCounts": {
+        "followers": 1250,
+        "following": 890,
+        "posts": 156,
+        "likes": 3420
+      },
+      "createdAt": "2024-01-10T08:30:00Z",
+      "updatedAt": "2024-01-15T14:22:00Z"
+    },
+    {
+      "id": "profile-456",
+      "username": "nftlover",
+      "walletAddress": "WALLET_ADDRESS_HERE",
+      "blockchain": "SOLANA",
+      "namespace": "NFTMarketplace",
+      "customProperties": {
+        "bio": "Digital art aficionado",
+        "profileImage": "https://example.com/avatar.png",
+        "interests": "digital art, NFTs, creativity"
+      },
+      "socialCounts": {
+        "followers": 567,
+        "following": 234,
+        "posts": 89,
+        "likes": 1230
+      },
+      "createdAt": "2024-01-05T12:15:00Z",
+      "updatedAt": "2024-01-14T09:45:00Z"
+    }
+  ],
+  "pagination": {
+    "total": 2,
+    "limit": 50,
+    "offset": 0,
+    "hasMore": false
+  }
+}
+
+Implementing in Your Onboarding Flow
+Here's a step-by-step guide to implement this in your onboarding process:
+
+After the user connects their wallet, call the Find All Profiles endpoint.
+If profiles are found, present them to the user with an option to import data.
+If the user selects a profile, use its data to pre-fill your profile creation form.
+Allow the user to review and modify the imported data before finalizing their profile.
+Here's a complete example of how this might look in code using the socialfi package:
+
+async function onboardUser(walletAddress: string) {
+  try {
+    // Fetch profiles associated with the wallet
+    const profilesResponse = await client.profiles.searchProfiles(
+      {
+        apiKey: API_KEY,
+      },
+      {
+        walletAddress: walletAddress,
+        shouldIncludeExternalProfiles: true,
+        limit: 10
+      }
+    );
+    
+    const profiles = profilesResponse.profiles;
+    
+    if (profiles.length > 0) {
+      // Display profiles to user and let them choose
+      const selectedProfile = await displayProfileChoices(profiles);
+      
+      if (selectedProfile) {
+        // Pre-fill form with selected profile data
+        const importedData = {
+          username: selectedProfile.username,
+          bio: selectedProfile.customProperties.bio || '',
+          profileImage: selectedProfile.customProperties.profileImage || '',
+          location: selectedProfile.customProperties.location || '',
+          website: selectedProfile.customProperties.website || ''
+        };
+        
+        await prefillProfileForm(importedData);
+        
+        // Optionally, create a new profile in your namespace with imported data
+        const newProfile = await client.profiles.findOrCreateCreate(
+          {
+            apiKey: API_KEY,
+          },
+          {
+            walletAddress: walletAddress,
+            username: importedData.username,
+            bio: importedData.bio,
+            blockchain: 'SOLANA',
+            customProperties: [
+              {
+                key: 'profileImage',
+                value: importedData.profileImage
+              },
+              {
+                key: 'location',
+                value: importedData.location
+              },
+              {
+                key: 'website',
+                value: importedData.website
+              },
+              {
+                key: 'importedFrom',
+                value: selectedProfile.namespace
+              }
+            ]
+          }
+        );
+        
+        console.log('Profile created with imported data:', newProfile);
+      }
+    } else {
+      // No existing profiles found, proceed with fresh onboarding
+      console.log('No existing profiles found, starting fresh onboarding');
+    }
+    
+    // Continue with your regular onboarding flow
+    // ...
+  } catch (error) {
+    console.error('Error during onboarding:', error);
+    // Fallback to regular onboarding
+  }
+}
+
+// Helper function to display profile choices to the user
+async function displayProfileChoices(profiles: any[]): Promise<any | null> {
+  // Implementation depends on your UI framework
+  // This could be a modal, dropdown, or list component
+  // Return the selected profile or null if user chooses to start fresh
+  return profiles[0]; // Simplified example
+}
+
+// Helper function to pre-fill the profile form
+async function prefillProfileForm(data: any): Promise<void> {
+  // Implementation depends on your UI framework
+  // Fill form fields with the imported data
+  console.log('Pre-filling form with:', data);
+}
+
+Advanced Usage
+Filtering Profiles by Namespace
+You can also filter profiles by specific namespaces if you want to only show profiles from certain apps:
+
+Using the Socialfi Package
+try {
+  const profiles = await client.profiles.searchProfiles(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      walletAddress: 'wallet_address_here',
+      namespace: 'SpecificApp', // Only profiles from SpecificApp
+      shouldIncludeExternalProfiles: true
+    }
+  );
+} catch (error) {
+  console.error('Error fetching filtered profiles:', error);
+}
+
+Using the API Directly
+try {
+  const response = await fetch('https://api.usetapestry.dev/v1/profiles/search?apiKey=YOUR_API_KEY&shouldIncludeExternalProfiles=true', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      walletAddress: 'wallet_address_here',
+      namespace: 'SpecificApp'
+    }),
+  });
+  
+  const profiles = await response.json();
+} catch (error) {
+  console.error('Error fetching filtered profiles:', error);
+}
+
+
+Identity Resolution
+The socialfi package also provides identity resolution capabilities to find profiles across different identifiers:
+
+try {
+  const resolvedProfiles = await client.identity.resolveIdentity(
+    {
+      apiKey: API_KEY,
+    },
+    {
+      identifier: 'wallet_address_here',
+      identifierType: 'walletAddress'
+    }
+  );
+  console.log('Resolved identity profiles:', resolvedProfiles);
+} catch (error) {
+  console.error('Error resolving identity:', error);
+}
+
+Benefits
+By implementing this feature, you can:
+
+Reduce user friction during onboarding
+Increase the likelihood of completed profiles
+Provide a seamless experience for users already part of the Tapestry ecosystem
+Encourage data portability and user ownership across different applications
+Improve user retention by leveraging existing social connections
+Best Practices
+Handle edge cases: Always provide a fallback for users who don't have existing profiles
+Respect user choice: Give users the option to start fresh even if profiles are found
+Validate imported data: Ensure imported data meets your app's requirements
+Update regularly: Periodically check for new profiles associated with the user's wallet
+Privacy considerations: Respect user privacy and only import data they consent to share
+Error handling: Implement robust error handling for network issues or API failures
+Next Steps
+Now that you understand how to use the Profiles endpoint to fetch external profiles, consider integrating it into your onboarding flow. This will not only improve the user experience but also demonstrate your app's integration with the broader Tapestry ecosystem.
+
+Remember to handle cases where a user might not have any existing profiles, and always give users the option to create a new profile from scratch if they prefer.
+

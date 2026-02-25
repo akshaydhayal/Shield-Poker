@@ -2,6 +2,9 @@
 
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
+import TapestryProfileModal from "@/components/TapestryProfileModal";
+import { useCurrentWallet } from "@/hooks/use-current-wallet";
+import { useState } from "react";
 
 interface NavbarProps {
   onCreateGameClick: () => void;
@@ -9,6 +12,16 @@ interface NavbarProps {
 
 export default function Navbar({ onCreateGameClick }: NavbarProps) {
   const { connected } = useWallet();
+  const { mainProfile } = useCurrentWallet();
+  const [enforceProfile, setEnforceProfile] = useState(false);
+
+  const handleCreateGameClick = () => {
+    if (!mainProfile) {
+      setEnforceProfile(true);
+    } else {
+      onCreateGameClick();
+    }
+  };
 
   return (
     <nav className="w-full bg-black/30 backdrop-blur-lg border-b border-green-500/50 sticky top-0 z-50">
@@ -24,12 +37,17 @@ export default function Navbar({ onCreateGameClick }: NavbarProps) {
           <div className="flex items-center gap-3">
             {connected && (
               <button
-                onClick={onCreateGameClick}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm sm:text-base"
+                onClick={handleCreateGameClick}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm sm:text-base hidden sm:block"
               >
                 + Create Game
               </button>
             )}
+            <TapestryProfileModal 
+              forceShow={enforceProfile} 
+              onClose={() => setEnforceProfile(false)} 
+              message="To create your own poker tables and host other players, you'll need to set up a player profile first!"
+            />
             <WalletMultiButton />
           </div>
         </div>
