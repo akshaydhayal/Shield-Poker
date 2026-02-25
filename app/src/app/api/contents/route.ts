@@ -51,12 +51,13 @@ export async function POST(request: Request) {
     }
 
     const payload = {
+      id: body.id, // Optional: Allow setting a specific ID (e.g. game-chat-{gameId})
       profileId,
       content,
       contentType: 'text',
       blockchain: 'SOLANA',
       execution: 'FAST_UNCONFIRMED',
-      customProperties: customProperties || []
+      properties: customProperties || []
     };
 
     const response = await fetch(`${API_URL}/contents/findOrCreate?apiKey=${API_KEY}`, {

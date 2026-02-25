@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 
 interface Props {
   profileId: string;
+  id?: string;
   content: string;
   customProperties?: { key: string; value: string }[];
 }
@@ -13,7 +14,7 @@ export const useCreateContent = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
 
-  const createContent = useCallback(async ({ profileId, content, customProperties }: Props) => {
+  const createContent = useCallback(async ({ profileId, id, content, customProperties }: Props) => {
     setLoading(true);
     setError(null);
     setSuccess(false);
@@ -24,7 +25,7 @@ export const useCreateContent = () => {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ profileId, content, customProperties }),
+        body: JSON.stringify({ profileId, id, content, customProperties }),
       });
 
       const result = await response.json();

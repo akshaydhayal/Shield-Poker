@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePokerContext } from "@/context/poker-context";
-import TapestryProfileModal from "@/components/TapestryProfileModal";
 import { useCurrentWallet } from "@/hooks/use-current-wallet";
+import { useCreateContent } from "@/hooks/use-create-content";
+import TapestryProfileModal from "@/components/TapestryProfileModal";
 import { GamePhase } from "@/lib/poker";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import "@solana/wallet-adapter-react-ui/styles.css";
@@ -23,6 +24,7 @@ export default function Home() {
     pokerClient
   } = poker;
 
+  const { createContent } = useCreateContent();
   const [activeTab, setActiveTab] = useState<"live" | "completed">("live");
   const { mainProfile } = useCurrentWallet();
   const [enforceProfileJoin, setEnforceProfileJoin] = useState(false);

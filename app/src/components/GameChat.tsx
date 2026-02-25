@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useGetProfiles } from '@/hooks/use-get-profiles';
-import { useGetContentsByProfile } from '@/hooks/use-get-contents';
+import { useGetContent } from '@/hooks/use-get-content';
 import { useCreateContent } from '@/hooks/use-create-content';
 import { useGetComments } from '@/hooks/use-get-comments';
 import { useCreateComment } from '@/hooks/use-create-comment';
@@ -25,14 +25,14 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
   
   // Custom Hooks
   const { profiles: myProfiles } = useGetProfiles({ walletAddress: connected && publicKey ? publicKey.toString() : '' });
-  const { profiles: p1Profiles } = useGetProfiles({ walletAddress: player1Key });
-  const { fetchContents } = useGetContentsByProfile();
+  // Removed p1Profiles dependency as we use deterministic ID
+  const { fetchContent, content: chatContent } = useGetContent();
   const { createContent } = useCreateContent();
   const { data: messages, fetchComments, loading: loadingMessages } = useGetComments();
   const { createComment, loading: sendingMessage } = useCreateComment();
 
   const userProfileId = myProfiles?.[0]?.profile?.id || myProfiles?.[0]?.profile?.username || null;
-  const p1ProfileId = p1Profiles?.[0]?.profile?.id || p1Profiles?.[0]?.profile?.username || null;
+  // Removed p1ProfileId logic
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -46,7 +46,7 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
     if (connected && publicKey && (isPlayer1 || isPlayer2) && userProfileId !== null) {
       initChat();
     }
-  }, [connected, publicKey, gameId, userProfileId, p1ProfileId]);
+  }, [connected, publicKey, gameId, userProfileId]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -63,46 +63,37 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
     try {
       if (!userProfileId) return;
 
-      if (!p1ProfileId && !isPlayer1) {
-        // Player 1 hasn't setup profile, so no chat thread can exist
-        return;
+      const threadId = `game-chat-${gameId}`;
+
+      // 1. Try to fetch existing thread
+      const existingThread = await fetchContent(threadId);
+      
+      if (existingThread && existingThread.content) {
+         setChatThreadId(threadId);
+         await fetchComments(threadId);
+         return;
       }
 
-      if (p1ProfileId) {
-        const contents = await fetchContents(p1ProfileId);
-
-        const thread = contents?.contents?.find((c: any) => 
-          c.content?.customProperties?.find((p:any) => p.key === 'gameId' && p.value === gameId) || 
-          c.customProperties?.find((p:any) => p.key === 'gameId' && p.value === gameId) ||
-          c.content?.customProperties?.gameId === gameId || 
-          c.customProperties?.gameId === gameId
-        );
-
-        if (thread) {
-          const tId = thread.content?.id || thread.id;
-          setChatThreadId(tId);
-          await fetchComments(tId);
-          return;
-        }
+      // 2. If no thread found (e.g. game created before this feature or creation failed),
+      // and I am Player 1, try to lazy-create it.
+      if (isPlayer1 && !chatThreadId) {
+         try {
+            const newPost = await createContent({
+                profileId: userProfileId,
+                id: threadId,
+                content: `Chat thread for Shield Poker Game #${gameId}`,
+                customProperties: [
+                  { key: 'gameId', value: gameId.toString() },
+                  { key: 'isChatThread', value: 'true' }
+                ]
+              });
+            // If success
+             setChatThreadId(threadId);
+             await fetchComments(threadId);
+         } catch (e) {
+             console.error("Failed to lazy-create chat thread", e);
+         }
       }
-
-      // 3. If thread doesn't exist and I am Player 1, create it
-      if (isPlayer1 && userProfileId && !chatThreadId) {
-         const newPost = await createContent({
-            profileId: userProfileId,
-            content: `Chat thread for Game #${gameId}`,
-            customProperties: [
-              { key: 'gameId', value: gameId },
-              { key: 'isChatThread', value: 'true' }
-            ]
-          });
-        const tId = (newPost as any)?.content?.id || (newPost as any)?.id;
-        if (tId) {
-          setChatThreadId(tId);
-          fetchComments(tId);
-        }
-      }
-
     } catch (err) {
       console.error("Error initializing chat:", err);
     }
@@ -135,7 +126,7 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 border border-purple-400/30"
+          className="fixed bottom-32 right-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 border border-purple-400/30"
         >
           <span className="text-2xl">💬</span>
         </button>
@@ -159,7 +150,7 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
             {messages.length === 0 ? (
               <p className="text-white/40 text-center text-sm italic mt-10">No messages yet. Say hi!</p>
             ) : (
-              messages.map((m: any) => {
+              [...messages].reverse().map((m: any) => {
                 const isMe = m.author?.id === userProfileId || m.author?.username === userProfileId;
                 return (
                   <div key={m.comment?.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
@@ -168,7 +159,9 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
                         ? 'bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-tr-sm' 
                         : 'bg-white/10 text-white/90 rounded-tl-sm border border-white/5'
                     }`}>
-                      {!isMe && (
+                      {isMe ? (
+                        <p className="text-[10px] text-purple-200/70 font-bold mb-1 text-right">You</p>
+                      ) : (
                         <p className="text-[10px] text-white/50 font-bold mb-1">{m.author?.username}</p>
                       )}
                       <p className="text-sm">{m.comment?.text}</p>
