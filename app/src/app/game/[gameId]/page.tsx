@@ -10,6 +10,8 @@ import { authorizeTee, createTeeConnection } from "@/lib/magicblock";
 import { RPC_URL } from "@/config";
 import { CardComponent } from "@/lib/cardUtils";
 import GameChat from "@/components/GameChat";
+import { useGetProfiles } from "@/hooks/use-get-profiles";
+import { getProfileImage } from "@/components/ProfileBadge";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export default function GamePage() {
@@ -30,6 +32,17 @@ export default function GamePage() {
   const [deckSeedInput, setDeckSeedInput] = useState<string>("");
   const [customBetAmount, setCustomBetAmount] = useState<number>(0);
   const [betAmountInput, setBetAmountInput] = useState<string>("");
+
+  // Profiles for both players
+  const { profiles: p1Profiles } = useGetProfiles({ 
+    walletAddress: gameState?.player1 ? gameState.player1.toBase58() : "" 
+  });
+  const { profiles: p2Profiles } = useGetProfiles({ 
+    walletAddress: gameState?.player2 ? gameState.player2.toBase58() : "" 
+  });
+
+  const p1Profile = p1Profiles?.[0]?.profile;
+  const p2Profile = p2Profiles?.[0]?.profile;
 
   useEffect(() => {
     if (connected && publicKey) {
@@ -376,9 +389,20 @@ export default function GamePage() {
   // Helper to get player display name
   const getPlayerName = (playerPubkey: PublicKey | null | undefined) => {
     if (!playerPubkey) return "Waiting...";
+    
+    // Check if it's player 1 or player 2 to get their profile username
+    let username = null;
+    if (gameState?.player1 && playerPubkey.equals(gameState.player1)) {
+      username = p1Profile?.username;
+    } else if (gameState?.player2 && playerPubkey.equals(gameState.player2)) {
+      username = p2Profile?.username;
+    }
+
     const short = playerPubkey.toBase58().slice(0, 6);
-    if (publicKey && playerPubkey.equals(publicKey)) return `You (${short})`;
-    return short;
+    const displayName = username || short;
+
+    if (publicKey && playerPubkey.equals(publicKey)) return `You (${displayName})`;
+    return displayName;
   };
 
   // Helper to check if it's current player's turn
@@ -586,14 +610,24 @@ export default function GamePage() {
                       <span className="text-white text-[9px] font-bold">TURN</span>
                     </div>
                   )}
-                  <div className="flex items-center justify-center gap-1 mb-0.5">
-                    <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] sm:text-xs ${
-                      isPlayer1Turn 
-                        ? 'bg-gradient-to-br from-green-400 to-green-600 ring-2 ring-green-300' 
-                        : 'bg-gradient-to-br from-blue-400 to-blue-600'
-                    }`}>
-                      {getPlayerName(gameState.player1).charAt(0).toUpperCase()}
-                    </div>
+                  <div className="flex items-center justify-center gap-2 mb-0.5">
+                    {getProfileImage(p1Profile) ? (
+                      <img 
+                        src={getProfileImage(p1Profile)!} 
+                        alt="P1" 
+                        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover ring-2 ${
+                          isPlayer1Turn ? 'ring-green-300' : 'ring-white/20'
+                        }`}
+                      />
+                    ) : (
+                      <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] sm:text-xs ${
+                        isPlayer1Turn 
+                          ? 'bg-gradient-to-br from-green-400 to-green-600 ring-2 ring-green-300' 
+                          : 'bg-gradient-to-br from-blue-400 to-blue-600'
+                      }`}>
+                        {getPlayerName(gameState.player1).charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <p className={`font-semibold text-[10px] sm:text-xs ${
                         isPlayer1Turn ? 'text-green-300' : 'text-white'
@@ -657,14 +691,24 @@ export default function GamePage() {
                       <span className="text-white text-[9px] font-bold">TURN</span>
                     </div>
                   )}
-                  <div className="flex items-center justify-center gap-1 mb-0.5">
-                    <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] sm:text-xs ${
-                      isPlayer2Turn 
-                        ? 'bg-gradient-to-br from-green-400 to-green-600 ring-2 ring-green-300' 
-                        : 'bg-gradient-to-br from-purple-400 to-purple-600'
-                    }`}>
-                      {getPlayerName(gameState.player2).charAt(0).toUpperCase()}
-                    </div>
+                  <div className="flex items-center justify-center gap-2 mb-0.5">
+                    {getProfileImage(p2Profile) ? (
+                      <img 
+                        src={getProfileImage(p2Profile)!} 
+                        alt="P2" 
+                        className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover ring-2 ${
+                          isPlayer2Turn ? 'ring-green-300' : 'ring-white/20'
+                        }`}
+                      />
+                    ) : (
+                      <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-white font-bold text-[10px] sm:text-xs ${
+                        isPlayer2Turn 
+                          ? 'bg-gradient-to-br from-green-400 to-green-600 ring-2 ring-green-300' 
+                          : 'bg-gradient-to-br from-purple-400 to-purple-600'
+                      }`}>
+                        {getPlayerName(gameState.player2).charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <p className={`font-semibold text-[10px] sm:text-xs ${
                         isPlayer2Turn ? 'text-green-300' : 'text-white'
@@ -728,31 +772,49 @@ export default function GamePage() {
               </div>
             )}
 
-            {/* Deal Cards Button - Show only if current player hasn't received cards yet */}
-            {gameState.phase === GamePhase.PreFlop && (() => {
-              // With TEE privacy, each player can only see their own cards
-              // Check if the CURRENT player has cards (not both players)
-              const isPlayer1 = publicKey && gameState.player1?.equals(publicKey);
-              const isPlayer2 = publicKey && gameState.player2?.equals(publicKey);
-              
-              // Current player's state
-              const myState = isPlayer1 ? player1State : isPlayer2 ? player2State : null;
-              
-              // Show button if current player doesn't have cards yet
-              const needsCards = !myState?.hand || myState.hand.every(c => c === 0);
-              
-              return needsCards;
-            })() && (
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-purple-500/90 rounded-lg p-6 text-center backdrop-blur-sm">
-                <h3 className="text-white font-bold text-lg mb-4">🃏 Shuffle & Deal Cards</h3>
-                <button
-                  onClick={handleDealCards}
-                  disabled={loading}
-                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg disabled:opacity-50 text-lg shadow-lg"
-                >
-                  {loading ? "Shuffling..." : "Deal Cards"}
-                </button>
-              </div>
+            {/* Workflow: Auth -> Shuffle/Deal cards */}
+            {connected && (isPlayer1 || isPlayer2) && (
+              (() => {
+                // Step 1: Authorize TEE if not already authorized
+                if (!authToken) {
+                  return (
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-blue-500/90 rounded-lg p-6 text-center backdrop-blur-sm shadow-2xl border border-blue-400 min-w-[280px]">
+                      <h3 className="text-white font-bold text-lg mb-2">⚡ Enable Fast Transactions</h3>
+                      <p className="text-white/80 text-xs mb-4 leading-tight">Authorize TEE to use MagicBlock Private ephemeral rollups for instant execution.</p>
+                      <button
+                        onClick={handleAuthorize}
+                        disabled={loading}
+                        className="bg-white hover:bg-gray-100 text-blue-600 font-bold py-3 px-8 rounded-lg disabled:opacity-50 text-lg shadow-lg w-full transition-all active:scale-95"
+                      >
+                        {loading ? "Authorizing..." : "🔐 Authorize TEE"}
+                      </button>
+                    </div>
+                  );
+                }
+
+                // Step 2: Once authorized, show Shuffle & Deal cards
+                if (gameState.phase === GamePhase.PreFlop) {
+                  const myState = isPlayer1 ? player1State : isPlayer2 ? player2State : null;
+                  const needsCards = !myState?.hand || myState.hand.every(c => c === 0);
+                  
+                  if (needsCards) {
+                    return (
+                      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 bg-purple-500/90 rounded-lg p-6 text-center backdrop-blur-sm shadow-2xl border border-purple-400 min-w-[280px]">
+                        <h3 className="text-white font-bold text-lg mb-4">🃏 Shuffle & Deal Cards</h3>
+                        <button
+                          onClick={handleDealCards}
+                          disabled={loading}
+                          className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg disabled:opacity-50 text-lg shadow-lg w-full transition-all active:scale-95"
+                        >
+                          {loading ? "Shuffling..." : "Deal Cards"}
+                        </button>
+                      </div>
+                    );
+                  }
+                }
+
+                return null;
+              })()
             )}
 
             {/* Showdown Results */}
@@ -994,25 +1056,7 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* TEE Authorization - Top Right Corner */}
-      {connected && !authToken && (
-        <div className="absolute top-2 right-2 md:top-4 md:right-4 z-50 bg-gradient-to-r from-blue-500/90 to-purple-600/90 rounded p-2 sm:p-3 backdrop-blur-sm border border-blue-400 shadow-md max-w-[200px] sm:max-w-[250px]">
-          <div className="text-white text-[10px] sm:text-xs font-semibold mb-1 flex items-center gap-1">
-            <span className="text-sm">⚡</span> Enable Fast UX
-          </div>
-          <p className="text-white/80 text-[9px] sm:text-[10px] mb-2 leading-tight">
-            Authorize TEE for instant rollups.
-          </p>
-          <button
-            onClick={handleAuthorize}
-            disabled={loading}
-            className="bg-white hover:bg-gray-100 text-blue-600 font-bold py-1 px-2 rounded disabled:opacity-50 text-[10px] w-full transition-colors flex justify-center items-center gap-1"
-          >
-            {loading ? "Authorizing..." : <><span>🔐</span> Authorize</>}
-          </button>
-        </div>
-      )}
-      {/* TEE Status Indicator */}
+      {/* TEE Status Indicator (kept as small badge) */}
       {connected && authToken && teeConnection && (
         <div className="absolute top-2 right-2 md:top-4 md:right-4 z-50 bg-green-500/80 rounded px-2 py-1 backdrop-blur-sm border border-green-400 shadow-sm pointer-events-none">
           <div className="text-white text-[9px] sm:text-[10px] font-semibold flex items-center gap-1.5">

@@ -7,6 +7,7 @@ import { useGetContent } from '@/hooks/use-get-content';
 import { useCreateContent } from '@/hooks/use-create-content';
 import { useGetComments } from '@/hooks/use-get-comments';
 import { useCreateComment } from '@/hooks/use-create-comment';
+import { getProfileImage } from './ProfileBadge';
 
 interface GameChatProps {
   gameId: string;
@@ -145,7 +146,7 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
   return (
     <div className="w-full h-full min-h-[400px] max-h-[800px] bg-gradient-to-b from-gray-900 to-black rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-white/5 border-b border-white/10 p-4 flex justify-between items-center bg-gradient-to-r from-purple-900/40 to-blue-900/40">
+      <div className="bg-white/5 border-b border-white/10 px-4 py-3 flex justify-between items-center bg-gradient-to-r from-purple-900/40 to-blue-900/40">
         <h3 className="font-bold text-white flex items-center gap-2">
           <span className="text-xl">💬</span> Game Chat
         </h3>
@@ -163,19 +164,33 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
             ) : (
               [...messages].reverse().map((m: any) => {
                 const isMe = m.author?.id === userProfileId || m.author?.username === userProfileId;
+                const avatarUrl = getProfileImage(m.author);
+                const initial = (m.author?.username || m.author?.id || '?')[0].toUpperCase();
+
                 return (
-                  <div key={m.comment?.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
+                  <div key={m.comment?.id} className={`flex items-end gap-0 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {/* Avatar */}
+                    {avatarUrl ? (
+                      <img 
+                        src={avatarUrl} 
+                        alt="Avatar" 
+                        className="w-8 h-8 rounded-full border border-white/10 shadow-sm flex-shrink-0"
+                      />
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0 border border-white/10 ${
+                        isMe ? 'bg-gradient-to-br from-purple-500 to-blue-500' : 'bg-gradient-to-br from-gray-600 to-gray-700'
+                      }`}>
+                        {initial}
+                      </div>
+                    )}
+
+                    {/* Message Bubble */}
+                    <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${
                       isMe 
-                        ? 'bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-tr-sm' 
-                        : 'bg-white/10 text-white/90 rounded-tl-sm border border-white/5'
+                        ? 'bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-br-sm' 
+                        : 'bg-white/10 text-white/90 rounded-bl-sm border border-white/5'
                     }`}>
-                      {isMe ? (
-                        <p className="text-[10px] text-purple-200/70 font-bold mb-1 text-right">You</p>
-                      ) : (
-                        <p className="text-[10px] text-white/50 font-bold mb-1">{m.author?.username}</p>
-                      )}
-                      <p className="text-sm">{m.comment?.text}</p>
+                      <p className="text-sm leading-tight">{m.comment?.text}</p>
                     </div>
                   </div>
                 );
