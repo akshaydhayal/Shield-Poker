@@ -8,22 +8,20 @@ import { useCurrentWallet } from "@/hooks/use-current-wallet";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { usePokerContext } from "@/context/poker-context";
 
-interface NavbarProps {
-  onCreateGameClick?: () => void;
-}
-
-export default function Navbar({ onCreateGameClick }: NavbarProps) {
+export default function Navbar() {
   const { connected } = useWallet();
   const { mainProfile } = useCurrentWallet();
   const [enforceProfile, setEnforceProfile] = useState(false);
   const router = useRouter();
+  const { setShowCreateGameModal } = usePokerContext();
 
   const handleCreateGameClick = () => {
     if (!mainProfile) {
       setEnforceProfile(true);
     } else {
-      onCreateGameClick?.();
+      setShowCreateGameModal(true);
     }
   };
 

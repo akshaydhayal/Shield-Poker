@@ -467,22 +467,6 @@ export default function GamePage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden">
-      {/* Top Bar */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex justify-between items-center p-2 bg-black/30 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => router.push("/")}
-            className="text-white hover:text-green-400 transition-colors text-sm"
-          >
-            ← Back
-          </button>
-          <h1 className="text-white font-bold text-sm">Game #{gameId}</h1>
-        </div>
-        <div className="flex items-center gap-1">
-          <WalletMultiButton />
-        </div>
-      </div>
-
       {/* Error Display */}
       {error && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500/90 border border-red-400 rounded-lg p-4 max-w-md shadow-2xl backdrop-blur-md">
@@ -496,12 +480,12 @@ export default function GamePage() {
       )}
 
       {/* Main Poker Table Container */}
-      <div className="flex items-center justify-center min-h-screen pt-12 pb-24 px-2">
+      <div className="flex items-center justify-center min-h-screen pt-4 pb-24 px-2">
         <div className="relative w-full max-w-4xl">
           
           {/* Caution Notice - Above Table */}
-          <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 z-30 w-full max-w-[280px] sm:max-w-[320px] pointer-events-none">
-            <div className="bg-black/60 backdrop-blur-md border border-yellow-500/30 rounded-full px-4 py-1.5 shadow-lg flex items-center justify-center gap-2">
+          <div className="absolute -top-10 left-1/3 transform -translate-x-1/2 z-30 w-full max-w-[280px] sm:max-w-[320px] pointer-events-none">
+            <div className="bg-black/60 backdrop-blur-md border border-yellow-500/30 rounded-full px-4 py-1.5 shadow-lg flex items-center justify-center gap-2 ">
               <span className="text-yellow-500 text-xs animate-pulse">⚠️</span>
               <p className="text-white/90 text-[10px] sm:text-[11px] font-medium whitespace-nowrap">
                 Stuck or getting Errors? <button onClick={() => window.location.reload()} className="pointer-events-auto text-yellow-400 underline font-bold hover:text-yellow-300">Refresh Page</button> to resync deck/state or fix errors.

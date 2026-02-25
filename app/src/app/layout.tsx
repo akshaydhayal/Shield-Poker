@@ -17,6 +17,10 @@ import { useMemo } from "react";
 
 const inter = Inter({ subsets: ["latin"] });
 
+import { PokerProvider } from "@/context/poker-context";
+import Navbar from "@/components/Navbar";
+import { GlobalComponents } from "@/components/GlobalComponents";
+
 export default function RootLayout({
   children,
 }: {
@@ -38,7 +42,12 @@ export default function RootLayout({
       <body className={inter.className}>
         <ConnectionProvider endpoint={endpoint}>
           <WalletProvider wallets={wallets} autoConnect>
-            <WalletModalProvider>{children}</WalletModalProvider>
+            <WalletModalProvider>
+              <PokerProvider>
+                <GlobalComponents />
+                {children}
+              </PokerProvider>
+            </WalletModalProvider>
           </WalletProvider>
         </ConnectionProvider>
       </body>

@@ -1,15 +1,11 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useGetProfileInfo } from "@/hooks/use-get-profile-info";
 import { useCurrentWallet } from "@/hooks/use-current-wallet";
-import { usePoker } from "@/hooks/use-poker";
 import Link from "next/link";
 import { useState } from "react";
 import { getProfileImage } from "@/components/ProfileBadge";
-import Navbar from "@/components/Navbar";
-import CreateGameModal from "@/components/CreateGameModal";
-import TapestryProfileModal from "@/components/TapestryProfileModal";
 
 const getCustomProp = (profile: any, keyName: string) => {
   if (!profile) return "0";
@@ -29,29 +25,10 @@ const getCustomProp = (profile: any, keyName: string) => {
 
 export default function ProfilePage() {
   const params = useParams();
-  const router = useRouter();
   const username = params.username as string;
   const { profile, loading: profileLoading, error: profileError } = useGetProfileInfo({ username });
-  const { walletAddress, mainProfile } = useCurrentWallet();
+  const { walletAddress } = useCurrentWallet();
   const [copied, setCopied] = useState(false);
-  const [showCreateGameModal, setShowCreateGameModal] = useState(false);
-
-  const {
-    handleCreateGame,
-    loading: gameLoading,
-    allGames,
-    error: gameError
-  } = usePoker();
-
-  const onCreateGame = async (gameId: number, buyInSol: number) => {
-    try {
-      await handleCreateGame(gameId, buyInSol);
-      setShowCreateGameModal(false);
-      router.push(`/game/${gameId}`);
-    } catch (err) {
-      // Error handled by hook/UI
-    }
-  };
 
   const handleCopy = async () => {
     if (profile?.walletAddress) {
@@ -64,8 +41,6 @@ export default function ProfilePage() {
       }
     }
   };
-
-  const isMe = profile && walletAddress && profile.walletAddress === walletAddress;
 
   if (profileLoading) {
     return (
@@ -101,19 +76,11 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
-      <Navbar onCreateGameClick={() => setShowCreateGameModal(true)} />
-      <CreateGameModal
-        isOpen={showCreateGameModal}
-        onClose={() => setShowCreateGameModal(false)}
-        onCreateGame={onCreateGame}
-        loading={gameLoading}
-        existingGames={allGames}
-      />
       {/* Background decoration */}
       <div className="fixed top-[-10%] right-[-5%] w-96 h-96 bg-green-500/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="fixed bottom-[-10%] left-[-5%] w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none " />
 
-      <div className="max-w-4xl mx-auto px-6 py-0 relative z-10">
+      <div className="max-w-4xl mx-auto px-6 py-8 relative z-10">
         {/* Profile Card */}
         <div className="bg-gradient-to-br from-green-950 to-black rounded-3xl border border-green-500/30 shadow-2xl overflow-hidden mt-0">
           {/* Banner */}
@@ -155,7 +122,7 @@ export default function ProfilePage() {
                    <span>📜</span> Bio
                  </h3>
                  <p className="text-white/80 leading-relaxed italic">
-                   "{profile.bio || getCustomProp(profile, 'bio')}"
+                    &quot;{profile.bio || getCustomProp(profile, 'bio')}&quot;
                  </p>
                </div>
             )}

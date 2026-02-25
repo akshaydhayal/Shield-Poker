@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { usePoker } from "@/hooks/use-poker";
-import Navbar from "@/components/Navbar";
-import CreateGameModal from "@/components/CreateGameModal";
+import { usePokerContext } from "@/context/poker-context";
 import TapestryProfileModal from "@/components/TapestryProfileModal";
 import { useCurrentWallet } from "@/hooks/use-current-wallet";
 import { GamePhase } from "@/lib/poker";
@@ -13,34 +11,21 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 
 export default function Home() {
   const router = useRouter();
+  const { poker } = usePokerContext();
   const {
     allGames,
-    loading,
     refreshing,
     fetchingGames,
     error,
-    setError,
-    handleCreateGame,
     fetchAllGames,
     connected,
     publicKey,
     pokerClient
-  } = usePoker();
+  } = poker;
 
-  const [showCreateGameModal, setShowCreateGameModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"live" | "completed">("live");
   const { mainProfile } = useCurrentWallet();
   const [enforceProfileJoin, setEnforceProfileJoin] = useState(false);
-
-  const onCreateGame = async (gameId: number, buyInSol: number) => {
-    try {
-      await handleCreateGame(gameId, buyInSol);
-      setShowCreateGameModal(false);
-      router.push(`/game/${gameId}`);
-    } catch (err) {
-      // Error handled by hook
-    }
-  };
 
   const handleRefresh = () => {
     fetchAllGames(true);
@@ -48,16 +33,8 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-green-900 to-green-700">
-      <Navbar onCreateGameClick={() => setShowCreateGameModal(true)} />
-      <CreateGameModal
-        isOpen={showCreateGameModal}
-        onClose={() => setShowCreateGameModal(false)}
-        onCreateGame={onCreateGame}
-        loading={loading}
-        existingGames={allGames}
-      />
       <div className="max-w-6xl mx-auto p-4 sm:p-8">
-        <div className="bg-gradient-to-br from-white/15 via-purple-500/5 to-white/5 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-6 sm:p-8">
+        <div className="bg-gradient-to-br from-white/15 via-purple-500/5 to-white/5 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-6 sm:p-8 border border-red-400">
           {error && (
             <div className="bg-gradient-to-r from-red-500/30 to-red-600/30 border-2 border-red-400 rounded-xl p-4 mb-6 backdrop-blur-sm shadow-lg shadow-red-500/20">
               <p className="text-red-100 font-bold">{error}</p>
@@ -76,7 +53,7 @@ export default function Home() {
               </div>
               
               {/* Visual Flow */}
-              <div className="max-w-2xl mx-auto mb-6">
+              <div className="max-w-2xl mx-auto mb-6 ">
                 <div className="flex items-center justify-center gap-3 sm:gap-6 flex-wrap">
                   <div className="flex flex-col items-center group">
                     <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl p-4 border-2 border-green-400/30 backdrop-blur-sm shadow-lg shadow-green-500/20 group-hover:scale-110 transition-transform duration-300">
@@ -260,7 +237,6 @@ export default function Home() {
                                       router.push(`/game/${game.gameId}`);
                                     }
                                   }}
-                                  disabled={loading}
                                   className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 text-white text-xs font-bold py-1.5 px-3 rounded-md disabled:opacity-50 shadow-lg shadow-blue-500/40 transition-all hover:scale-105"
                                 >
                                   Join
