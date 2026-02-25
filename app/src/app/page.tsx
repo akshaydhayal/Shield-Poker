@@ -1,121 +1,50 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { PokerClient, GamePhase } from "@/lib/poker";
-import { RPC_URL } from "@/config";
+import { usePoker } from "@/hooks/use-poker";
 import Navbar from "@/components/Navbar";
 import CreateGameModal from "@/components/CreateGameModal";
 import TapestryProfileModal from "@/components/TapestryProfileModal";
 import { useCurrentWallet } from "@/hooks/use-current-wallet";
+import { GamePhase } from "@/lib/poker";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export default function Home() {
   const router = useRouter();
-  const { publicKey, signTransaction, signAllTransactions, connected } = useWallet();
-  const [connection, setConnection] = useState<Connection | null>(null);
-  const [pokerClient, setPokerClient] = useState<PokerClient | null>(null);
-  const [allGames, setAllGames] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [fetchingGames, setFetchingGames] = useState(true); // Track initial fetch
-  const [error, setError] = useState<string | null>(null);
+  const {
+    allGames,
+    loading,
+    refreshing,
+    fetchingGames,
+    error,
+    setError,
+    handleCreateGame,
+    fetchAllGames,
+    connected,
+    publicKey,
+    pokerClient
+  } = usePoker();
+
   const [showCreateGameModal, setShowCreateGameModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"live" | "completed">("live");
   const { mainProfile } = useCurrentWallet();
   const [enforceProfileJoin, setEnforceProfileJoin] = useState(false);
 
-  useEffect(() => {
-    if (connected && publicKey) {
-      const conn = new Connection(RPC_URL, "confirmed");
-      setConnection(conn);
-    }
-  }, [connected, publicKey]);
-
-  useEffect(() => {
-    if (connection && publicKey && signTransaction && signAllTransactions) {
-      const wallet = {
-        publicKey,
-        signTransaction: signTransaction,
-        signAllTransactions: signAllTransactions,
-        signMessage: async (message: Uint8Array) => {
-          throw new Error("signMessage not available");
-        },
-      };
-      const client = new PokerClient(connection, wallet as any);
-      setPokerClient(client);
-    }
-  }, [connection, publicKey, signTransaction, signAllTransactions]);
-
-  const handleCreateGame = async (gameId: number, buyInSol: number) => {
-    if (!pokerClient) {
-      setError("Poker client not initialized");
-      return;
-    }
-
+  const onCreateGame = async (gameId: number, buyInSol: number) => {
     try {
-      setLoading(true);
-      const buyInLamports = buyInSol * LAMPORTS_PER_SOL;
-      const tx = await pokerClient.initializeGame(gameId, buyInLamports);
-      console.log("Game initialized:", tx);
-      await fetchAllGames();
+      await handleCreateGame(gameId, buyInSol);
       setShowCreateGameModal(false);
-      // Navigate to the game page
       router.push(`/game/${gameId}`);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message || "Failed to initialize game");
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      // Error handled by hook
     }
   };
 
-  const handleJoinGame = async (joinGameId: number) => {
-    // Navigate to game page - join will be handled there
-    router.push(`/game/${joinGameId}`);
-  };
-
-  const fetchAllGames = useCallback(async (isRefresh: boolean = false) => {
-    if (!pokerClient) {
-      console.log("PokerClient not available yet");
-      return;
-    }
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setFetchingGames(true); // Set loading state for initial fetch
-      }
-      console.log("Fetching all games...");
-      const games = await pokerClient.getAllGames();
-      console.log(`Fetched ${games.length} game(s) from on-chain`);
-      setAllGames(games);
-      setError(null);
-    } catch (err: any) {
-      console.error("Error fetching all games:", err);
-      console.error("Error details:", err.message, err.stack);
-      setError(`Failed to fetch games: ${err.message || "Unknown error"}`);
-    } finally {
-      if (isRefresh) {
-        setRefreshing(false);
-      } else {
-        setFetchingGames(false); // Clear loading state after initial fetch
-      }
-    }
-  }, [pokerClient]);
-
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = () => {
     fetchAllGames(true);
-  }, [fetchAllGames]);
-
-  // Fetch games only once on mount (when pokerClient is ready)
-  useEffect(() => {
-    if (pokerClient) {
-      fetchAllGames(false);
-    }
-  }, [pokerClient, fetchAllGames]);
+  };
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-green-900 to-green-700">
@@ -123,7 +52,7 @@ export default function Home() {
       <CreateGameModal
         isOpen={showCreateGameModal}
         onClose={() => setShowCreateGameModal(false)}
-        onCreateGame={handleCreateGame}
+        onCreateGame={onCreateGame}
         loading={loading}
         existingGames={allGames}
       />
@@ -149,40 +78,27 @@ export default function Home() {
               {/* Visual Flow */}
               <div className="max-w-2xl mx-auto mb-6">
                 <div className="flex items-center justify-center gap-3 sm:gap-6 flex-wrap">
-                  {/* Step 1 */}
                   <div className="flex flex-col items-center group">
                     <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-2xl p-4 border-2 border-green-400/30 backdrop-blur-sm shadow-lg shadow-green-500/20 group-hover:scale-110 transition-transform duration-300">
                       <span className="text-4xl">🔐</span>
                     </div>
                     <p className="text-white/70 text-xs mt-2 font-medium">Connect</p>
                   </div>
-
-                  {/* Arrow */}
                   <div className="hidden sm:block text-2xl text-white/40">→</div>
-
-                  {/* Step 2 */}
                   <div className="flex flex-col items-center group">
                     <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl p-4 border-2 border-blue-400/30 backdrop-blur-sm shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform duration-300">
                       <span className="text-4xl">🎮</span>
                     </div>
                     <p className="text-white/70 text-xs mt-2 font-medium">Create/Join</p>
                   </div>
-
-                  {/* Arrow */}
                   <div className="hidden sm:block text-2xl text-white/40">→</div>
-
-                  {/* Step 3 */}
                   <div className="flex flex-col items-center group">
                     <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-2xl p-4 border-2 border-purple-400/30 backdrop-blur-sm shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform duration-300">
                       <span className="text-4xl">🛡️</span>
                     </div>
                     <p className="text-white/70 text-xs mt-2 font-medium">Play Private</p>
                   </div>
-
-                  {/* Arrow */}
                   <div className="hidden sm:block text-2xl text-white/40">→</div>
-
-                  {/* Step 4 */}
                   <div className="flex flex-col items-center group">
                     <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-2xl p-4 border-2 border-yellow-400/30 backdrop-blur-sm shadow-lg shadow-yellow-500/20 group-hover:scale-110 transition-transform duration-300">
                       <span className="text-4xl">🏆</span>
@@ -200,9 +116,7 @@ export default function Home() {
 
           {connected && (
             <div>
-              {/* Header with Tabs and Refresh Button */}
               <div className="flex items-center justify-between mb-8 gap-4">
-                {/* Tabs */}
                 <div className="flex gap-3 flex-1 bg-gradient-to-r from-white/10 via-purple-500/5 to-white/10 rounded-xl p-1.5 border border-white/20 shadow-lg">
                   <button
                     onClick={() => setActiveTab("live")}
@@ -226,7 +140,6 @@ export default function Home() {
                   </button>
                 </div>
                 
-                {/* Refresh Button */}
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing || !pokerClient}
@@ -237,36 +150,25 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Games List */}
               <div className="space-y-2">
                   {(() => {
-                    // Show loading state while fetching games initially
                     if (fetchingGames) {
                       return (
                         <div className="text-center py-12 bg-gradient-to-br from-white/10 via-blue-500/5 to-purple-500/5 rounded-xl border-2 border-white/20 shadow-lg">
-                          <div className="text-5xl mb-4 animate-spin">
-                            🎴
-                          </div>
+                          <div className="text-5xl mb-4 animate-spin">🎴</div>
                           <p className="text-white text-xl font-bold mb-2 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
                             Loading games...
                           </p>
-                          <p className="text-white/70 text-sm mt-2 font-medium">
-                            Fetching games from blockchain
-                          </p>
+                          <p className="text-white/70 text-sm mt-2 font-medium">Fetching games from blockchain</p>
                         </div>
                       );
                     }
 
-                    // Filter games based on active tab
                     const filteredGames = allGames.filter((game) => {
-                      if (activeTab === "live") {
-                        return game.phase !== GamePhase.Finished;
-                      } else {
-                        return game.phase === GamePhase.Finished;
-                      }
+                      if (activeTab === "live") return game.phase !== GamePhase.Finished;
+                      return game.phase === GamePhase.Finished;
                     });
 
-                    // Only show "No games found" after fetching is complete
                     if (filteredGames.length === 0) {
                       return (
                         <div className="text-center py-12 bg-gradient-to-br from-white/10 via-blue-500/5 to-purple-500/5 rounded-xl border-2 border-white/20 shadow-lg">
@@ -274,23 +176,19 @@ export default function Home() {
                             {activeTab === "live" ? "🎲" : "📋"}
                           </div>
                           <p className="text-white text-xl font-bold mb-2 bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
-                            {activeTab === "live"
-                              ? "No live games found"
-                              : "No completed games found"}
+                            {activeTab === "live" ? "No live games found" : "No completed games found"}
                           </p>
                           <p className="text-white/70 text-sm mt-2 font-medium">
-                            {activeTab === "live"
-                              ? "Create a new game to get started!"
-                              : "Completed games will appear here"}
+                            {activeTab === "live" ? "Create a new game to get started!" : "Completed games will appear here"}
                           </p>
                         </div>
                       );
                     }
 
                     return filteredGames.map((game) => {
-                      const isPlayer1 = publicKey && game.player1?.equals(publicKey);
-                      const isPlayer2 = publicKey && game.player2?.equals(publicKey);
-                      const canJoin = !isPlayer1 && !isPlayer2 && game.player2 === null;
+                      const isP1 = publicKey && game.player1?.equals(publicKey);
+                      const isP2 = publicKey && game.player2?.equals(publicKey);
+                      const canJoin = !isP1 && !isP2 && game.player2 === null;
                       
                       return (
                         <div
@@ -333,7 +231,7 @@ export default function Home() {
                                   <span className="text-white/50 font-medium">Player 1: </span>
                                   <span className="font-mono text-xs text-white">
                                     {game.player1?.toString().slice(0, 8)}...
-                                    {isPlayer1 && <span className="text-green-400 font-bold ml-1">(You)</span>}
+                                    {isP1 && <span className="text-green-400 font-bold ml-1">(You)</span>}
                                   </span>
                                 </div>
                                 <div>
@@ -342,7 +240,7 @@ export default function Home() {
                                     {game.player2 ? (
                                       <>
                                         {game.player2.toString().slice(0, 8)}...
-                                        {isPlayer2 && <span className="text-green-400 font-bold ml-1">(You)</span>}
+                                        {isP2 && <span className="text-green-400 font-bold ml-1">(You)</span>}
                                       </>
                                     ) : (
                                       <span className="text-yellow-300 italic font-medium">Waiting...</span>
@@ -368,7 +266,7 @@ export default function Home() {
                                   Join
                                 </button>
                               )}
-                              {(isPlayer1 || isPlayer2) && (
+                              {(isP1 || isP2) && (
                                 <span className="bg-gradient-to-r from-green-500/30 to-emerald-500/30 text-green-200 text-xs font-bold py-1 px-2 rounded-md border border-green-400/40 text-center shadow-sm shadow-green-500/20">
                                   Your Game
                                 </span>

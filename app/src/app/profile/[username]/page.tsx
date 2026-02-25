@@ -1,12 +1,15 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useGetProfileInfo } from "@/hooks/use-get-profile-info";
 import { useCurrentWallet } from "@/hooks/use-current-wallet";
+import { usePoker } from "@/hooks/use-poker";
 import Link from "next/link";
 import { useState } from "react";
 import { getProfileImage } from "@/components/ProfileBadge";
 import Navbar from "@/components/Navbar";
+import CreateGameModal from "@/components/CreateGameModal";
+import TapestryProfileModal from "@/components/TapestryProfileModal";
 
 const getCustomProp = (profile: any, keyName: string) => {
   if (!profile) return "0";
@@ -26,10 +29,29 @@ const getCustomProp = (profile: any, keyName: string) => {
 
 export default function ProfilePage() {
   const params = useParams();
+  const router = useRouter();
   const username = params.username as string;
-  const { profile, loading, error } = useGetProfileInfo({ username });
-  const { walletAddress } = useCurrentWallet();
+  const { profile, loading: profileLoading, error: profileError } = useGetProfileInfo({ username });
+  const { walletAddress, mainProfile } = useCurrentWallet();
   const [copied, setCopied] = useState(false);
+  const [showCreateGameModal, setShowCreateGameModal] = useState(false);
+
+  const {
+    handleCreateGame,
+    loading: gameLoading,
+    allGames,
+    error: gameError
+  } = usePoker();
+
+  const onCreateGame = async (gameId: number, buyInSol: number) => {
+    try {
+      await handleCreateGame(gameId, buyInSol);
+      setShowCreateGameModal(false);
+      router.push(`/game/${gameId}`);
+    } catch (err) {
+      // Error handled by hook/UI
+    }
+  };
 
   const handleCopy = async () => {
     if (profile?.walletAddress) {
@@ -45,7 +67,7 @@ export default function ProfilePage() {
 
   const isMe = profile && walletAddress && profile.walletAddress === walletAddress;
 
-  if (loading) {
+  if (profileLoading) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-green-400">
         <div className="animate-spin text-5xl mb-4">🎴</div>
@@ -54,12 +76,12 @@ export default function ProfilePage() {
     );
   }
 
-  if (error || !profile) {
+  if (profileError || !profile) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-white text-center">
         <h1 className="text-4xl font-black text-red-500 mb-4">Profile Not Found</h1>
         <p className="text-white/60 mb-8 max-w-md">
-          {error || "The requested Tapestry profile does not exist or has not been initialized."}
+          {profileError || "The requested Tapestry profile does not exist or has not been initialized."}
         </p>
         <Link 
           href="/"
@@ -79,7 +101,14 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-black text-white relative overflow-hidden">
-      <Navbar />
+      <Navbar onCreateGameClick={() => setShowCreateGameModal(true)} />
+      <CreateGameModal
+        isOpen={showCreateGameModal}
+        onClose={() => setShowCreateGameModal(false)}
+        onCreateGame={onCreateGame}
+        loading={gameLoading}
+        existingGames={allGames}
+      />
       {/* Background decoration */}
       <div className="fixed top-[-10%] right-[-5%] w-96 h-96 bg-green-500/10 rounded-full blur-[100px] pointer-events-none" />
       <div className="fixed bottom-[-10%] left-[-5%] w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none " />
@@ -93,7 +122,7 @@ export default function ProfilePage() {
           </div>
           
           <div className="px-8 pb-8">
-            <div className="flex flex-col md:flex-row gap-6 items-start md:items-end -mt-16 mb-8 relative z-10">
+            <div className="flex flex-col md:flex-row gap-6 items-start md:items-end -mt-16 mb-4 relative z-10">
               {/* Avatar */}
               <div className="w-32 h-32 rounded-2xl border-4 border-black bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-xl overflow-hidden shrink-0">
                 {hasImage ? (
@@ -121,7 +150,7 @@ export default function ProfilePage() {
 
             {/* Bio section if available */}
             {(profile.bio || (getCustomProp(profile, 'bio') !== "0" && getCustomProp(profile, 'bio'))) && (
-               <div className="bg-black/40 border border-green-500/10 rounded-2xl p-6 mb-8">
+               <div className="bg-black/40 border border-green-500/10 rounded-2xl px-6 py-3 mb-6">
                  <h3 className="text-green-400 font-bold mb-2 uppercase tracking-wider text-sm flex items-center gap-2">
                    <span>📜</span> Bio
                  </h3>
