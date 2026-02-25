@@ -49,7 +49,7 @@ export default function TapestryProfileModal({ forceShow, onClose, message }: Ta
       });
       // Refresh the profiles list after creation
       await refetchProfile();
-      setHasDismissed(false); // Reset dismissal on success
+      setHasDismissed(true);
       setShowModal(false);
       if (onClose) onClose();
     } catch (err) {
@@ -61,27 +61,6 @@ export default function TapestryProfileModal({ forceShow, onClose, message }: Ta
 
   return (
     <>
-      {mainProfile && (
-        <Link href={`/profile/${mainProfile.username}`}>
-          <div className="flex items-center gap-2 bg-gradient-to-r from-green-900/60 to-emerald-900/60 px-4 py-1.5 rounded-full border border-green-500/30 shadow-lg hover:border-green-400/50 transition-colors cursor-pointer group">
-            {mainProfile.customProperties?.profileImage || (Array.isArray(mainProfile.customProperties) && mainProfile.customProperties.find?.((p: any) => p.key === 'profileImage')?.value) ? (
-              <img 
-                src={mainProfile.customProperties.profileImage || (Array.isArray(mainProfile.customProperties) && mainProfile.customProperties.find?.((p: any) => p.key === 'profileImage')?.value)} 
-                alt="Profile" 
-                className="w-6 h-6 rounded-full object-cover shadow-sm ring-1 ring-green-400/50"
-              />
-            ) : (
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-emerald-400 flex items-center justify-center text-xs font-bold text-black uppercase shadow-sm">
-                {(mainProfile.username || 'U')[0]}
-              </div>
-            )}
-            <span className="text-white text-sm font-bold truncate max-w-[100px] group-hover:text-green-300 transition-colors">
-              {mainProfile.username}
-            </span>
-          </div>
-        </Link>
-      )}
-
       {showModal && !mainProfile && !loadingMainProfile && (
         <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black/40 backdrop-blur-lg flex items-center justify-center p-4">
           <div className="bg-gradient-to-br from-green-950 to-black p-8 rounded-3xl border border-green-500/20 shadow-2xl w-full max-w-sm relative flex flex-col max-h-[90vh] overflow-y-auto my-auto shrink-0 custom-scrollbar">

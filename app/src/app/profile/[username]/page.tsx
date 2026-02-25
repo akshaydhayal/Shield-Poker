@@ -5,9 +5,18 @@ import { useGetProfileInfo } from "@/hooks/use-get-profile-info";
 import { useCurrentWallet } from "@/hooks/use-current-wallet";
 import Link from "next/link";
 import { useState } from "react";
+import { getProfileImage } from "@/components/ProfileBadge";
+import Navbar from "@/components/Navbar";
 
 const getCustomProp = (profile: any, keyName: string) => {
-  if (!profile || !profile.customProperties) return "0";
+  if (!profile) return "0";
+  
+  // Try direct property first (new Tapestry API behavior observed)
+  if (profile[keyName] !== undefined && profile[keyName] !== null) {
+     return profile[keyName];
+  }
+
+  if (!profile.customProperties) return "0";
   if (Array.isArray(profile.customProperties)) {
     const prop = profile.customProperties.find((p: any) => p.key === keyName);
     return prop ? prop.value : "0";
@@ -62,33 +71,22 @@ export default function ProfilePage() {
     );
   }
 
-  const gamesPlayed = getCustomProp(profile, 'gamesPlayed');
-  const gamesWon = getCustomProp(profile, 'gamesWon');
-  const gamesLost = getCustomProp(profile, 'gamesLost');
-  const profileImage = getCustomProp(profile, 'profileImage');
-  const hasImage = profileImage && profileImage !== "0";
+  const gamesPlayed = getCustomProp(profile, 'total games played');
+  const gamesWon = getCustomProp(profile, 'games won');
+  const gamesLost = getCustomProp(profile, 'games lost');
+  const imageUrl = getProfileImage(profile);
+  const hasImage = !!imageUrl;
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 md:p-12 relative overflow-hidden">
+    <div className="min-h-screen bg-black text-white relative overflow-hidden">
+      <Navbar />
       {/* Background decoration */}
       <div className="fixed top-[-10%] right-[-5%] w-96 h-96 bg-green-500/10 rounded-full blur-[100px] pointer-events-none" />
-      <div className="fixed bottom-[-10%] left-[-5%] w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none" />
+      <div className="fixed bottom-[-10%] left-[-5%] w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] pointer-events-none " />
 
-      <div className="max-w-4xl mx-auto relative z-10">
-        {/* Header / Nav */}
-        <div className="flex items-center justify-between mb-8">
-          <Link href="/" className="flex items-center gap-2 text-green-400 hover:text-green-300 transition-colors font-bold">
-            <span className="text-xl">←</span> Back to Game
-          </Link>
-          {isMe && (
-            <span className="bg-green-500/20 text-green-400 border border-green-500/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-              This is You
-            </span>
-          )}
-        </div>
-
+      <div className="max-w-4xl mx-auto px-6 py-0 relative z-10">
         {/* Profile Card */}
-        <div className="bg-gradient-to-br from-green-950 to-black rounded-3xl border border-green-500/30 shadow-2xl overflow-hidden">
+        <div className="bg-gradient-to-br from-green-950 to-black rounded-3xl border border-green-500/30 shadow-2xl overflow-hidden mt-0">
           {/* Banner */}
           <div className="h-32 bg-gradient-to-r from-green-800/40 to-emerald-900/40 border-b border-green-500/20 relative">
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cardboard-flat.png')] opacity-20 mix-blend-overlay"></div>
@@ -99,7 +97,7 @@ export default function ProfilePage() {
               {/* Avatar */}
               <div className="w-32 h-32 rounded-2xl border-4 border-black bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-xl overflow-hidden shrink-0">
                 {hasImage ? (
-                  <img src={profileImage} alt={profile.username} className="w-full h-full object-cover" />
+                  <img src={imageUrl} alt={profile.username} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-5xl font-black text-black uppercase">
                     {(profile.username || 'U')[0]}
@@ -122,13 +120,13 @@ export default function ProfilePage() {
             </div>
 
             {/* Bio section if available */}
-            {profile.customProperties?.bio && profile.customProperties.bio !== "0" && (
+            {(profile.bio || (getCustomProp(profile, 'bio') !== "0" && getCustomProp(profile, 'bio'))) && (
                <div className="bg-black/40 border border-green-500/10 rounded-2xl p-6 mb-8">
                  <h3 className="text-green-400 font-bold mb-2 uppercase tracking-wider text-sm flex items-center gap-2">
                    <span>📜</span> Bio
                  </h3>
                  <p className="text-white/80 leading-relaxed italic">
-                   "{profile.customProperties.bio}"
+                   "{profile.bio || getCustomProp(profile, 'bio')}"
                  </p>
                </div>
             )}

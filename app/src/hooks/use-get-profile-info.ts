@@ -34,7 +34,12 @@ export const useGetProfileInfo = ({ username, walletAddress }: Props) => {
       }
 
       if (result.profiles && result.profiles.length > 0) {
-        setProfile(result.profiles[0].profile);
+        const profileData = result.profiles[0];
+        setProfile({
+          ...profileData.profile,
+          walletAddress: profileData.wallet?.address,
+          customProperties: profileData.profile?.customProperties || []
+        });
       } else {
         setProfile(null);
       }

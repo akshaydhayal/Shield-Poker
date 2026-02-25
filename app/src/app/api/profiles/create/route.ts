@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const API_KEY = process.env.NEXT_PUBLIC_TAPESTRY_API_KEY;
-const API_URL = 'https://api.usetapestry.dev/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_TAPESTRY_API_URL;
 
 export async function POST(request: Request) {
   if (!API_KEY) {
@@ -20,9 +20,9 @@ export async function POST(request: Request) {
     }
 
     const customProperties = [
-      { key: 'gamesPlayed', value: '0' },
-      { key: 'gamesWon', value: '0' },
-      { key: 'gamesLost', value: '0' }
+      { key: 'total games played', value: '0' },
+      { key: 'games won', value: '0' },
+      { key: 'games lost', value: '0' }
     ];
 
     if (image) {
@@ -33,9 +33,10 @@ export async function POST(request: Request) {
       walletAddress: ownerWalletAddress,
       username,
       bio: bio || '',
+      image: image || '',
       blockchain: 'SOLANA',
       execution: 'FAST_UNCONFIRMED',
-      customProperties: customProperties
+      properties: customProperties
     };
 
     const response = await fetch(`${API_URL}/profiles/findOrCreate?apiKey=${API_KEY}`, {
@@ -53,6 +54,11 @@ export async function POST(request: Request) {
     }
 
     const data = await response.json();
+    
+    // If the profile already existed, findOrCreate might NOT have updated the custom properties.
+    // To be safe, if we have a profile ID, we can try to update it if the user is explicitly 
+    // trying to "create" (initialize) it. However, let's first see if the URL fix alone handles it.
+    
     return NextResponse.json(data);
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 const API_KEY = process.env.NEXT_PUBLIC_TAPESTRY_API_KEY;
-const API_URL = 'https://api.usetapestry.dev/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_TAPESTRY_API_URL;
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const contentId = searchParams.get('contentId');
   const limit = searchParams.get('limit') || '50';
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   if (!API_KEY) {
     return NextResponse.json({ error: 'Tapestry API key missing' }, { status: 500 });
   }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const API_KEY = process.env.NEXT_PUBLIC_TAPESTRY_API_KEY;
-const API_URL = 'https://api.usetapestry.dev/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_TAPESTRY_API_URL;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

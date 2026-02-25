@@ -3,11 +3,12 @@
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { useWallet } from "@solana/wallet-adapter-react";
 import TapestryProfileModal from "@/components/TapestryProfileModal";
+import ProfileBadge from "@/components/ProfileBadge";
 import { useCurrentWallet } from "@/hooks/use-current-wallet";
 import { useState } from "react";
 
 interface NavbarProps {
-  onCreateGameClick: () => void;
+  onCreateGameClick?: () => void;
 }
 
 export default function Navbar({ onCreateGameClick }: NavbarProps) {
@@ -19,7 +20,7 @@ export default function Navbar({ onCreateGameClick }: NavbarProps) {
     if (!mainProfile) {
       setEnforceProfile(true);
     } else {
-      onCreateGameClick();
+      onCreateGameClick?.();
     }
   };
 
@@ -36,12 +37,15 @@ export default function Navbar({ onCreateGameClick }: NavbarProps) {
 
           <div className="flex items-center gap-3">
             {connected && (
-              <button
-                onClick={handleCreateGameClick}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm sm:text-base hidden sm:block"
-              >
-                + Create Game
-              </button>
+              <div className="flex items-center gap-3">
+                <ProfileBadge />
+                <button
+                  onClick={handleCreateGameClick}
+                  className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm sm:text-base hidden sm:block"
+                >
+                  + Create Game
+                </button>
+              </div>
             )}
             <TapestryProfileModal 
               forceShow={enforceProfile} 
