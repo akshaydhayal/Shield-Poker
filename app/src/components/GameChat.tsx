@@ -20,8 +20,9 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
   const [newMessage, setNewMessage] = useState('');
   const [chatThreadId, setChatThreadId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevMessagesLength = useRef(0);
   
   // Custom Hooks
   const { profiles: myProfiles } = useGetProfiles({ walletAddress: connected && publicKey ? publicKey.toString() : '' });
@@ -34,13 +35,32 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
   const userProfileId = myProfiles?.[0]?.profile?.id || myProfiles?.[0]?.profile?.username || null;
   // Removed p1ProfileId logic
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (force = false) => {
+    if (!chatContainerRef.current || !messagesEndRef.current) {
+      // Fallback if ref isn't attached yet
+      if (force && messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
+    
+    const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+    // If within 200px of the bottom, we consider it "at the bottom"
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 200;
+    
+    if (force || isAtBottom) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isOpen]);
+    if (messages.length !== prevMessagesLength.current) {
+      const isFirstLoad = prevMessagesLength.current === 0;
+      // Small timeout to allow the DOM to render the new messages before measuring
+      setTimeout(() => scrollToBottom(isFirstLoad), 50);
+    }
+    prevMessagesLength.current = messages.length;
+  }, [messages]);
 
   useEffect(() => {
     if (connected && publicKey && (isPlayer1 || isPlayer2) && userProfileId !== null) {
@@ -50,14 +70,14 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (chatThreadId && isOpen) {
+    if (chatThreadId) {
       fetchComments(chatThreadId); // Initial fetch when opened
       interval = setInterval(() => {
         fetchComments(chatThreadId);
       }, 3000);
     }
     return () => clearInterval(interval);
-  }, [chatThreadId, isOpen, fetchComments]);
+  }, [chatThreadId, fetchComments]);
 
   const initChat = async () => {
     try {
@@ -111,6 +131,8 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
       });
       setNewMessage('');
       await fetchComments(chatThreadId);
+      // Force scroll to bottom when we send a message
+      setTimeout(() => scrollToBottom(true), 100);
     } catch (err) {
       console.error("Error sending message:", err);
     }
@@ -121,33 +143,22 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
   }
 
   return (
-    <>
-      {/* Floating Chat Toggle */}
-      {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-32 right-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform z-40 border border-purple-400/30"
-        >
-          <span className="text-2xl">💬</span>
-        </button>
-      )}
-
-      {/* Chat Window */}
-      {isOpen && (
-        <div className="fixed bottom-6 right-6 w-80 sm:w-96 h-[500px] bg-gradient-to-b from-gray-900 to-black rounded-2xl shadow-2xl border border-white/10 flex flex-col z-50 overflow-hidden">
-          {/* Header */}
-          <div className="bg-white/5 border-b border-white/10 p-4 flex justify-between items-center bg-gradient-to-r from-purple-900/40 to-blue-900/40">
-            <h3 className="font-bold text-white flex items-center gap-2">
-              <span className="text-xl">💬</span> Game Chat
-            </h3>
-            <button onClick={() => setIsOpen(false)} className="text-white/50 hover:text-white transition-colors">
-              ✖
-            </button>
-          </div>
+    <div className="w-full h-full min-h-[400px] max-h-[800px] bg-gradient-to-b from-gray-900 to-black rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="bg-white/5 border-b border-white/10 p-4 flex justify-between items-center bg-gradient-to-r from-purple-900/40 to-blue-900/40">
+        <h3 className="font-bold text-white flex items-center gap-2">
+          <span className="text-xl">💬</span> Game Chat
+        </h3>
+      </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {messages.length === 0 ? (
+          <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+            {loadingMessages && messages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full space-y-3">
+                <div className="w-8 h-8 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin"></div>
+                <p className="text-white/60 text-sm animate-pulse">Chats Loading...</p>
+              </div>
+            ) : messages.length === 0 ? (
               <p className="text-white/40 text-center text-sm italic mt-10">No messages yet. Say hi!</p>
             ) : (
               [...messages].reverse().map((m: any) => {
@@ -192,8 +203,6 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
               </button>
             </div>
           </form>
-        </div>
-      )}
-    </>
+    </div>
   );
 }

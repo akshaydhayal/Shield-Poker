@@ -466,7 +466,7 @@ export default function GamePage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden">
+    <main className="min-h-[calc(100vh-64px)] lg:h-[calc(100vh-64px)] bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative lg:overflow-hidden flex flex-col">
       {/* Error Display */}
       {error && (
         <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500/90 border border-red-400 rounded-lg p-4 max-w-md shadow-2xl backdrop-blur-md">
@@ -479,9 +479,12 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* Main Poker Table Container */}
-      <div className="flex items-center justify-center min-h-screen pt-4 pb-24 px-2">
-        <div className="relative w-full max-w-4xl">
+      {/* Main Layout Container */}
+      <div className={`flex flex-col lg:flex-row items-center justify-center w-full max-w-[1400px] mx-auto px-2 lg:px-4 gap-4 lg:gap-8 h-full flex-1 ${connected && isMyTurn && gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished && gameState.phase !== GamePhase.Showdown ? 'pb-24 pt-2' : 'py-2 lg:py-4'}`}>
+        
+        {/* Left Column: Poker Table Box */}
+        <div className="relative w-full max-w-4xl flex-1 flex flex-col justify-center items-center h-full max-h-[800px]">
+          <div className="relative w-full">
           
           {/* Caution Notice - Above Table */}
           <div className="absolute -top-10 left-1/3 transform -translate-x-1/2 z-30 w-full max-w-[280px] sm:max-w-[320px] pointer-events-none">
@@ -815,6 +818,20 @@ export default function GamePage() {
             )}
           </div>
         </div>
+        </div>
+
+        {/* Right Column: Game Chat Box */}
+        <div className="w-full lg:w-80 xl:w-96 flex-shrink-0 h-[400px] lg:h-full lg:max-h-[800px] flex flex-col self-center mb-16 lg:mb-0">
+          <div className="flex-1 w-full bg-black/40 rounded-2xl shadow-2xl overflow-hidden border border-white/10 backdrop-blur-md relative z-10 flex flex-col">
+            <GameChat 
+              gameId={gameId.toString()} 
+              player1Key={gameState?.player1?.toString() || ""} 
+              isPlayer1={isPlayer1} 
+              isPlayer2={isPlayer2} 
+            />
+          </div>
+        </div>
+
       </div>
 
       {/* Bottom Action Bar - Only show when it's player's turn */}
@@ -979,39 +996,31 @@ export default function GamePage() {
 
       {/* TEE Authorization - Top Right Corner */}
       {connected && !authToken && (
-        <div className="fixed top-20 right-4 z-50 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-4 backdrop-blur-sm border-2 border-blue-400 shadow-lg">
-          <div className="text-white text-sm font-semibold mb-2">
-            ⚡ Enable Fast Transactions
+        <div className="absolute top-2 right-2 md:top-4 md:right-4 z-50 bg-gradient-to-r from-blue-500/90 to-purple-600/90 rounded p-2 sm:p-3 backdrop-blur-sm border border-blue-400 shadow-md max-w-[200px] sm:max-w-[250px]">
+          <div className="text-white text-[10px] sm:text-xs font-semibold mb-1 flex items-center gap-1">
+            <span className="text-sm">⚡</span> Enable Fast UX
           </div>
-          <p className="text-white/80 text-xs mb-3">
-            Authorize TEE to use MagicBlock ephemeral rollups for instant execution
+          <p className="text-white/80 text-[9px] sm:text-[10px] mb-2 leading-tight">
+            Authorize TEE for instant rollups.
           </p>
           <button
             onClick={handleAuthorize}
             disabled={loading}
-            className="bg-white hover:bg-gray-100 text-blue-600 font-bold py-2 px-4 rounded disabled:opacity-50 text-sm w-full transition-colors"
+            className="bg-white hover:bg-gray-100 text-blue-600 font-bold py-1 px-2 rounded disabled:opacity-50 text-[10px] w-full transition-colors flex justify-center items-center gap-1"
           >
-            {loading ? "Authorizing..." : "🔐 Authorize TEE"}
+            {loading ? "Authorizing..." : <><span>🔐</span> Authorize</>}
           </button>
         </div>
       )}
       {/* TEE Status Indicator */}
       {connected && authToken && teeConnection && (
-        <div className="fixed top-20 right-4 z-50 bg-green-500/90 rounded-lg p-2 backdrop-blur-sm border-2 border-green-400 shadow-lg">
-          <div className="text-white text-xs font-semibold flex items-center gap-2">
-            <span className="animate-pulse">⚡</span>
-            <span>TEE Active - Fast Mode</span>
+        <div className="absolute top-2 right-2 md:top-4 md:right-4 z-50 bg-green-500/80 rounded px-2 py-1 backdrop-blur-sm border border-green-400 shadow-sm pointer-events-none">
+          <div className="text-white text-[9px] sm:text-[10px] font-semibold flex items-center gap-1.5">
+            <span className="animate-pulse text-xs">⚡</span>
+            <span>TEE Fast Mode</span>
           </div>
         </div>
       )}
-
-      {/* Tapestry Game Chat */}
-      <GameChat 
-        gameId={gameId.toString()} 
-        player1Key={gameState?.player1?.toString() || ""} 
-        isPlayer1={isPlayer1} 
-        isPlayer2={isPlayer2} 
-      />
 
     </main>
   );
