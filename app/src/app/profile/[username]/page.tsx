@@ -68,9 +68,9 @@ export default function ProfilePage() {
     );
   }
 
-  const gamesPlayed = getCustomProp(profile, 'total games played');
-  const gamesWon = getCustomProp(profile, 'games won');
-  const gamesLost = getCustomProp(profile, 'games lost');
+  const gamesPlayed = getCustomProp(profile, 'total_games_played');
+  const gamesWon = getCustomProp(profile, 'games_won');
+  const gamesLost = getCustomProp(profile, 'games_lost');
   const imageUrl = getProfileImage(profile);
   const hasImage = !!imageUrl;
 

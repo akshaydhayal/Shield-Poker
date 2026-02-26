@@ -20,9 +20,9 @@ export async function POST(request: Request) {
     }
 
     const customProperties = [
-      { key: 'total games played', value: '0' },
-      { key: 'games won', value: '0' },
-      { key: 'games lost', value: '0' }
+      { key: 'total_games_played', value: '0' },
+      { key: 'games_won', value: '0' },
+      { key: 'games_lost', value: '0' }
     ];
 
     if (image) {

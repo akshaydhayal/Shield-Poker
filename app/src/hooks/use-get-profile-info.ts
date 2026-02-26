@@ -34,7 +34,28 @@ export const useGetProfileInfo = ({ username, walletAddress }: Props) => {
       }
 
       if (result.profiles && result.profiles.length > 0) {
-        const profileData = result.profiles[0];
+        let profileData = result.profiles[0];
+
+        if (username) {
+          const exactMatch = result.profiles.find(
+            (p: any) => p.profile?.username?.toLowerCase() === username.toLowerCase()
+          );
+          if (exactMatch) {
+            profileData = exactMatch;
+          } else {
+            setProfile(null);
+            setLoading(false);
+            return;
+          }
+        } else if (walletAddress) {
+          const exactMatch = result.profiles.find(
+            (p: any) => p.wallet?.address?.toLowerCase() === walletAddress.toLowerCase()
+          );
+          if (exactMatch) {
+            profileData = exactMatch;
+          }
+        }
+
         setProfile({
           ...profileData.profile,
           walletAddress: profileData.wallet?.address,

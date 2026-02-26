@@ -5,8 +5,12 @@ import { useCurrentWallet } from '@/hooks/use-current-wallet';
 
 export const getProfileImage = (profile: any) => {
   if (!profile) return null;
+  
+  // Check direct properties (flat schema) first
+  if (profile.profileImage && profile.profileImage !== "0") return profile.profileImage;
   if (profile.image && profile.image !== "0") return profile.image;
   
+  // Fallback to customProperties if needed
   if (profile.customProperties) {
     if (Array.isArray(profile.customProperties)) {
       const prop = profile.customProperties.find((p: any) => p.key === 'profileImage' || p.key === 'image');

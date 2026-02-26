@@ -12,6 +12,7 @@ import { CardComponent } from "@/lib/cardUtils";
 import GameChat from "@/components/GameChat";
 import { useGetProfiles } from "@/hooks/use-get-profiles";
 import { getProfileImage } from "@/components/ProfileBadge";
+import { useUpdateStats } from "@/hooks/use-update-stats";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export default function GamePage() {
@@ -32,6 +33,9 @@ export default function GamePage() {
   const [deckSeedInput, setDeckSeedInput] = useState<string>("");
   const [customBetAmount, setCustomBetAmount] = useState<number>(0);
   const [betAmountInput, setBetAmountInput] = useState<string>("");
+
+
+  const { updateStats } = useUpdateStats();
 
   // Profiles for both players
   const { profiles: p1Profiles } = useGetProfiles({ 
@@ -355,6 +359,34 @@ export default function GamePage() {
           setLoading(true);
           console.log("Auto-resolving game in Showdown phase...");
           await pokerClient.resolveGame(gameId);
+          
+          // Move Stats Update here - this happens exactly once when the tx succeeds
+          if (gameState.player1 && gameState.player2) {
+              try {
+                  const winnerKey = gameState.winner || gameState.player1; // Fallback to p1 if winner not yet synced
+                  const p1Address = gameState.player1.toBase58();
+                  const p2Address = gameState.player2.toBase58();
+                  const isP1Winner = winnerKey.equals(gameState.player1);
+
+                  console.log("🏆 Game Resolved. Updating stats for both players...");
+                  
+                  // Update both players in parallel
+                  await Promise.all([
+                      updateStats({ 
+                          walletAddress: p1Address, 
+                          result: isP1Winner ? 'win' : 'loss' 
+                      }),
+                      updateStats({ 
+                          walletAddress: p2Address, 
+                          result: isP1Winner ? 'loss' : 'win' 
+                      })
+                  ]);
+                  console.log("✅ Career stats updated for both players.");
+              } catch (statsErr) {
+                  console.error("Failed to update career stats during resolution:", statsErr);
+              }
+          }
+
           await new Promise(resolve => setTimeout(resolve, 2000));
           await fetchGameState();
         } catch (err: any) {
@@ -416,6 +448,8 @@ export default function GamePage() {
 
   const isPlayer1 = !!(publicKey && gameState?.player1 && publicKey.equals(gameState.player1));
   const isPlayer2 = !!(publicKey && gameState?.player2 && publicKey.equals(gameState.player2));
+
+
 
   // Helper to get remaining buy-in for current player
   // Uses PUBLIC committed amounts from gameState (visible to both players)

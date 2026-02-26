@@ -30,7 +30,13 @@ export function useGetProfiles({ walletAddress }: Props) {
         throw new Error(errorData.error || "Failed to fetch profiles");
       }
       const data = await res.json();
-      setProfiles(data.profiles || []);
+      let matchedProfiles = data.profiles || [];
+      if (walletAddress && matchedProfiles.length > 0) {
+        matchedProfiles = matchedProfiles.filter(
+          (p: any) => p.wallet?.address?.toLowerCase() === walletAddress.toLowerCase()
+        );
+      }
+      setProfiles(matchedProfiles);
     } catch (err: any) {
       setError(err.message);
     } finally {
