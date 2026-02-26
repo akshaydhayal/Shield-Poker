@@ -73,6 +73,12 @@ export const useGetProfileInfo = ({ username, walletAddress }: Props) => {
 
   useEffect(() => {
     fetchProfile();
+    
+    const handleProfileUpdate = () => {
+      fetchProfile();
+    };
+    window.addEventListener('profile_updated', handleProfileUpdate);
+    return () => window.removeEventListener('profile_updated', handleProfileUpdate);
   }, [fetchProfile]);
 
   return { profile, loading, error, refetch: fetchProfile };

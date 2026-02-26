@@ -67,7 +67,7 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
     if (connected && publicKey && (isPlayer1 || isPlayer2) && userProfileId !== null) {
       initChat();
     }
-  }, [connected, publicKey, gameId, userProfileId]);
+  }, [connected, publicKey, gameId, userProfileId, isPlayer1, isPlayer2]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;

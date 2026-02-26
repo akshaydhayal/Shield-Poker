@@ -47,11 +47,16 @@ export default function TapestryProfileModal({ forceShow, onClose, message }: Ta
         bio,
         image: imageUrl || null
       });
-      // Refresh the profiles list after creation
-      await refetchProfile();
+      // Close modal immediately for better UX
       setHasDismissed(true);
       setShowModal(false);
       if (onClose) onClose();
+
+      // Tapestry indexing can take a moment, so we wait 2 seconds before refetching
+      setTimeout(() => {
+        window.dispatchEvent(new Event('profile_updated'));
+      }, 2000);
+      
     } catch (err) {
       console.error('Error creating profile:', err);
     }

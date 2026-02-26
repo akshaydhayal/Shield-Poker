@@ -46,6 +46,12 @@ export function useGetProfiles({ walletAddress }: Props) {
 
   useEffect(() => {
     fetchProfiles();
+    
+    const handleProfileUpdate = () => {
+      fetchProfiles();
+    };
+    window.addEventListener('profile_updated', handleProfileUpdate);
+    return () => window.removeEventListener('profile_updated', handleProfileUpdate);
   }, [fetchProfiles]);
 
   return { profiles, loading, error, refetch: fetchProfiles };
