@@ -2,7 +2,7 @@ import { PublicKey } from "@solana/web3.js";
 
 // Program ID (update after deployment)
 export const PROGRAM_ID = new PublicKey(
-  "69bBkxpEHN9eEawdkvae9mZKZjgHLjfbAiCJheH1B94z"
+  "BUQ31ya3e228qLiED3VG9jp5PTUdLLMrhzPBf1P4p2k1"
 );
 
 // MagicBlock Program IDs

@@ -10,7 +10,7 @@ use ephemeral_rollups_sdk::ephem::commit_and_undelegate_accounts;
 // VRF SDK temporarily disabled - using client-side random seed for now
 // TODO: Re-enable VRF when SDK compatibility is resolved
 
-declare_id!("69bBkxpEHN9eEawdkvae9mZKZjgHLjfbAiCJheH1B94z");
+declare_id!("BUQ31ya3e228qLiED3VG9jp5PTUdLLMrhzPBf1P4p2k1");
 
 // MagicBlock Program IDs (PERMISSION_PROGRAM_ID is imported from SDK)
 use anchor_lang::solana_program::pubkey;
