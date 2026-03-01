@@ -15,6 +15,22 @@ import { getProfileImage } from "@/components/ProfileBadge";
 import { useUpdateStats } from "@/hooks/use-update-stats";
 import "@solana/wallet-adapter-react-ui/styles.css";
 
+const getCustomProp = (profile: any, keyName: string) => {
+  if (!profile) return "0";
+  
+  // Try direct property first (new Tapestry API behavior observed)
+  if (profile[keyName] !== undefined && profile[keyName] !== null) {
+     return profile[keyName];
+  }
+
+  if (!profile.customProperties) return "0";
+  if (Array.isArray(profile.customProperties)) {
+    const prop = profile.customProperties.find((p: any) => p.key === keyName);
+    return prop ? prop.value : "0";
+  }
+  return profile.customProperties[keyName] || "0";
+};
+
 export default function GamePage() {
   const params = useParams();
   const router = useRouter();
@@ -666,6 +682,9 @@ export default function GamePage() {
                       <p className={`font-semibold text-[10px] sm:text-xs ${
                         isPlayer1Turn ? 'text-green-300' : 'text-white'
                       }`}>{getPlayerName(gameState.player1)}</p>
+                      <p className="text-slate-200 text-[8px] sm:text-[9px]">
+                        Games Won: {getCustomProp(p1Profile, 'games_won')} | Games Lost: {getCustomProp(p1Profile, 'games_lost')}
+                      </p>
                       {player1State?.hasFolded && (
                         <p className="text-red-400 text-[9px] font-bold">FOLDED</p>
                       )}
@@ -747,6 +766,9 @@ export default function GamePage() {
                       <p className={`font-semibold text-[10px] sm:text-xs ${
                         isPlayer2Turn ? 'text-green-300' : 'text-white'
                       }`}>{getPlayerName(gameState.player2)}</p>
+                      <p className="text-slate-200 text-[8px] sm:text-[9px]">
+                        Games Won: {getCustomProp(p2Profile, 'games_won')} | Games Lost: {getCustomProp(p2Profile, 'games_lost')}
+                      </p>
                       {player2State?.hasFolded && (
                         <p className="text-red-400 text-[9px] font-bold">FOLDED</p>
                       )}

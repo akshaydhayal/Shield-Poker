@@ -51,12 +51,12 @@ export default function CreateGameModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="bg-white/10 rounded px-4 py-2 border border-white/20">
-            <label className="block text-white/70 text-xs mb-1 font-semibold">Game ID (Auto-generated)</label>
+          <div className="bg-black/30 rounded px-4 py-2 border border-white/10">
+            <label className="block text-emerald-200/80 text-xs mb-1 font-semibold uppercase tracking-wider">Game ID (Auto-generated)</label>
             <p className="text-white text-lg font-bold">#{gameId}</p>
           </div>
           <div>
-            <label className="block text-white mb-2 font-semibold">Buy-in (SOL)</label>
+            <label className="block text-white mb-2 font-bold uppercase tracking-wide text-sm">Buy-in (SOL)</label>
             <input
               type="number"
               step="0.01"

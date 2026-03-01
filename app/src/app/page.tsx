@@ -34,9 +34,9 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-green-900 to-green-700">
+    <main className="min-h-screen bg-gradient-to-br from-green-950 via-emerald-900 to-green-900">
       <div className="max-w-6xl mx-auto p-4 sm:p-8">
-        <div className="bg-gradient-to-br from-white/15 via-purple-500/5 to-white/5 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/20 p-6 sm:p-8 border border-red-400">
+        <div className="bg-black/40 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/10 p-6 sm:p-8">
           {error && (
             <div className="bg-gradient-to-r from-red-500/30 to-red-600/30 border-2 border-red-400 rounded-xl p-4 mb-6 backdrop-blur-sm shadow-lg shadow-red-500/20">
               <p className="text-red-100 font-bold">{error}</p>
@@ -179,7 +179,7 @@ export default function Home() {
                               router.push(`/game/${game.gameId}`);
                             }
                           }}
-                          className="group p-3 rounded-lg cursor-pointer transition-all duration-200 bg-gradient-to-br from-white/10 via-blue-500/5 to-purple-500/5 border border-white/20 hover:border-green-400/60 hover:bg-gradient-to-br hover:from-white/15 hover:via-blue-500/10 hover:to-purple-500/10 hover:shadow-lg hover:shadow-green-500/30 hover:scale-[1.02]"
+                          className="group p-4 rounded-xl cursor-pointer transition-all duration-300 bg-black/40 border border-white/10 hover:border-green-400/50 hover:bg-black/60 hover:shadow-2xl hover:shadow-green-500/20 hover:scale-[1.01]"
                         >
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
@@ -197,36 +197,36 @@ export default function Home() {
                                   {game.phase}
                                 </span>
                               </div>
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div>
-                                  <span className="text-white/50 font-medium">Buy-in: </span>
-                                  <span className="font-bold text-white drop-shadow-sm">{(game.buyIn / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
+                                <div className="grid grid-cols-2 gap-2 text-sm">
+                                  <div>
+                                    <span className="text-emerald-200/70 font-medium">Buy-in: </span>
+                                    <span className="font-bold text-white drop-shadow-sm">{(game.buyIn / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-emerald-200/70 font-medium">Pot: </span>
+                                    <span className="font-bold text-yellow-300 drop-shadow-sm">{(game.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
+                                  </div>
+                                  <div>
+                                    <span className="text-emerald-200/70 font-medium">Player 1: </span>
+                                    <span className="font-mono text-xs text-zinc-300">
+                                      {game.player1?.toString().slice(0, 8)}...
+                                      {isP1 && <span className="text-green-400 font-bold ml-1">(You)</span>}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-emerald-200/70 font-medium">Player 2: </span>
+                                    <span className="font-mono text-xs text-zinc-300">
+                                      {game.player2 ? (
+                                        <>
+                                          {game.player2.toString().slice(0, 8)}...
+                                          {isP2 && <span className="text-green-400 font-bold ml-1">(You)</span>}
+                                        </>
+                                      ) : (
+                                        <span className="text-yellow-400 italic font-medium">Waiting...</span>
+                                      )}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div>
-                                  <span className="text-white/50 font-medium">Pot: </span>
-                                  <span className="font-bold text-yellow-300 drop-shadow-sm">{(game.potAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL</span>
-                                </div>
-                                <div>
-                                  <span className="text-white/50 font-medium">Player 1: </span>
-                                  <span className="font-mono text-xs text-white">
-                                    {game.player1?.toString().slice(0, 8)}...
-                                    {isP1 && <span className="text-green-400 font-bold ml-1">(You)</span>}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-white/50 font-medium">Player 2: </span>
-                                  <span className="font-mono text-xs text-white">
-                                    {game.player2 ? (
-                                      <>
-                                        {game.player2.toString().slice(0, 8)}...
-                                        {isP2 && <span className="text-green-400 font-bold ml-1">(You)</span>}
-                                      </>
-                                    ) : (
-                                      <span className="text-yellow-300 italic font-medium">Waiting...</span>
-                                    )}
-                                  </span>
-                                </div>
-                              </div>
                             </div>
                             <div className="ml-3 flex flex-col gap-1.5">
                               {canJoin && (

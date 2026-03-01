@@ -64,10 +64,9 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
   }, [messages]);
 
   useEffect(() => {
-    if (connected && publicKey && (isPlayer1 || isPlayer2) && userProfileId !== null) {
-      initChat();
-    }
-  }, [connected, publicKey, gameId, userProfileId, isPlayer1, isPlayer2]);
+    // Initialize chat for everyone (players and spectators)
+    initChat();
+  }, [gameId, connected, publicKey, userProfileId, isPlayer1, isPlayer2]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -82,8 +81,6 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
 
   const initChat = async () => {
     try {
-      if (!userProfileId) return;
-
       const threadId = `game-chat-${gameId}`;
 
       // 1. Try to fetch existing thread
@@ -95,9 +92,9 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
          return;
       }
 
-      // 2. If no thread found (e.g. game created before this feature or creation failed),
-      // and I am Player 1, try to lazy-create it.
-      if (isPlayer1 && !chatThreadId) {
+      // 2. If no thread found and I am Player 1, try to lazy-create it.
+      // Creation REQUIRES a userProfileId
+      if (isPlayer1 && userProfileId && !chatThreadId) {
          try {
             const newPost = await createContent({
                 profileId: userProfileId,
@@ -108,7 +105,6 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
                   { key: 'isChatThread', value: 'true' }
                 ]
               });
-            // If success
              setChatThreadId(threadId);
              await fetchComments(threadId);
          } catch (e) {
@@ -139,9 +135,12 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
     }
   };
 
-  if (!connected || (!isPlayer1 && !isPlayer2) || !chatThreadId) {
+  // Visibility: Show to all if the thread exists
+  if (!chatThreadId) {
     return null;
   }
+
+  const canChat = connected && (isPlayer1 || isPlayer2) && userProfileId !== null;
 
   return (
     <div className="w-full h-full min-h-[400px] max-h-[800px] bg-gradient-to-b from-gray-900 to-black rounded-2xl shadow-2xl border border-white/10 flex flex-col overflow-hidden">
@@ -199,25 +198,33 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
-          <form onSubmit={sendMessage} className="p-3 border-t border-white/10 bg-black/50">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
-              />
-              <button
-                type="submit"
-                disabled={!newMessage.trim() || sendingMessage}
-                className="bg-purple-600 hover:bg-purple-500 text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 transition-colors"
-              >
-                {sendingMessage ? '...' : '➤'}
-              </button>
+          {/* Input - Only for joined players */}
+          {canChat ? (
+            <form onSubmit={sendMessage} className="p-3 border-t border-white/10 bg-black/50">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  placeholder="Type a message..."
+                  className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
+                />
+                <button
+                  type="submit"
+                  disabled={!newMessage.trim() || sendingMessage}
+                  className="bg-purple-600 hover:bg-purple-500 text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 transition-colors"
+                >
+                  {sendingMessage ? '...' : '➤'}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="p-3 border-t border-white/10 bg-black/40 text-center">
+              <p className="text-white/30 text-xs italic">
+                Only joined players can send messages.
+              </p>
             </div>
-          </form>
+          )}
     </div>
   );
 }
