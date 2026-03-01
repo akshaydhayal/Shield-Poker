@@ -554,10 +554,12 @@ export default function GamePage() {
       )}
 
       {/* Main Layout Container */}
-      <div className={`flex flex-col lg:flex-row items-center justify-center w-full max-w-[1400px] mx-auto px-2 lg:px-4 gap-4 lg:gap-8 h-full flex-1 ${connected && isMyTurn && gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished && gameState.phase !== GamePhase.Showdown ? 'pb-24 pt-2' : 'py-2 lg:py-4'}`}>
+      <div className="flex flex-col lg:flex-row items-stretch justify-center w-full max-w-[1400px] mx-auto px-2 lg:px-4 gap-4 lg:gap-6 h-full flex-1 py-4 lg:py-6 lg:overflow-hidden">
         
-        {/* Left Column: Poker Table Box */}
-        <div className="relative w-full max-w-4xl flex-1 flex flex-col justify-center items-center h-full max-h-[800px]">
+        {/* Left Column: Poker Table & Actions */}
+        <div className="relative w-full max-w-4xl flex-1 flex flex-col gap-4 h-full max-h-[850px]">
+          {/* Table Area */}
+          <div className="relative w-full flex-1 flex flex-col justify-center items-center">
           <div className="relative w-full">
           
           {/* Caution Notice - Above Table */}
@@ -935,11 +937,161 @@ export default function GamePage() {
               </div>
             )}
           </div>
-        </div>
+          </div>
+          </div>
+
+          {/* Integrated Actions - Moved from bottom bar to here */}
+          {connected && isMyTurn && gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished && gameState.phase !== GamePhase.Showdown && (
+            <div className="bg-black/60 backdrop-blur-md border border-emerald-500/30 rounded-2xl px-4 py-2 shadow-xl relative z-20">
+              <div className="max-w-3xl mx-auto">
+                {/* Bet Amount Input */}
+                <div className="mb-4">
+                  <div className="flex gap-3 items-center justify-between w-full flex-wrap sm:flex-nowrap">
+                    <label className="text-emerald-200/80 text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap">Bet Amount (SOL):</label>
+                    <div className="flex flex-1 items-center gap-1 bg-black/40 border border-slate-500 rounded-lg p-1 min-w-[150px]">
+                      <button
+                        onClick={() => {
+                          const newValue = Math.max(0, customBetAmount - 0.01);
+                          setCustomBetAmount(newValue);
+                          setBetAmountInput(newValue > 0 ? newValue.toFixed(4) : "");
+                        }}
+                        className="bg-zinc-800 hover:bg-zinc-700 border border-slate-500 text-white font-bold w-10 h-8 rounded-md text-xs transition-colors shrink-0"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={betAmountInput}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          if (value === "" || /^\d*\.?\d*$/.test(value)) {
+                            setBetAmountInput(value);
+                            const numValue = parseFloat(value);
+                            if (!isNaN(numValue) && numValue >= 0) {
+                              setCustomBetAmount(numValue);
+                            } else if (value === "" || value === ".") {
+                              setCustomBetAmount(0);
+                            }
+                          }
+                        }}
+                        onBlur={() => {
+                          if (betAmountInput === "" || betAmountInput === ".") {
+                            setBetAmountInput("");
+                            setCustomBetAmount(0);
+                          } else {
+                            const numValue = parseFloat(betAmountInput);
+                            if (!isNaN(numValue) && numValue >= 0) {
+                              setBetAmountInput(numValue.toFixed(4));
+                              setCustomBetAmount(numValue);
+                            } else {
+                              setBetAmountInput("");
+                              setCustomBetAmount(0);
+                            }
+                          }
+                        }}
+                        placeholder="0.0000"
+                        className="flex-1 bg-transparent border-none text-white text-center font-bold text-sm focus:ring-0 outline-none min-w-0"
+                      />
+                      <button
+                        onClick={() => {
+                          const newValue = customBetAmount + 0.01;
+                          setCustomBetAmount(newValue);
+                          setBetAmountInput(newValue.toFixed(4));
+                        }}
+                        className="bg-zinc-800 border border-slate-500 hover:bg-zinc-700 text-white font-bold w-10 h-8 rounded-md text-xs transition-colors shrink-0"
+                      >
+                        +
+                      </button>
+                    </div>
+                    
+                    <div className="flex gap-1 bg-white/5 p-1 rounded-lg shrink-0">
+                      <button
+                        onClick={() => {
+                          const value = remainingBuyIn * 0.33;
+                          setCustomBetAmount(value);
+                          setBetAmountInput(value.toFixed(4));
+                        }}
+                        className="bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 text-[9px] font-bold py-1.5 px-2 rounded-md transition-colors"
+                      >
+                        33%
+                      </button>
+                      <button
+                        onClick={() => {
+                          const value = remainingBuyIn * 0.5;
+                          setCustomBetAmount(value);
+                          setBetAmountInput(value.toFixed(4));
+                        }}
+                        className="bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 text-[9px] font-bold py-1.5 px-2 rounded-md transition-colors"
+                      >
+                        50%
+                      </button>
+                      <button
+                        onClick={() => {
+                          const value = remainingBuyIn * 0.75;
+                          setCustomBetAmount(value);
+                          setBetAmountInput(value.toFixed(4));
+                        }}
+                        className="bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 text-[9px] font-bold py-1.5 px-2 rounded-md transition-colors"
+                      >
+                        75%
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCustomBetAmount(remainingBuyIn);
+                          setBetAmountInput(remainingBuyIn.toFixed(4));
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold py-1.5 px-2 rounded-md transition-colors"
+                      >
+                        All-in
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() => handlePlayerAction(PlayerActionType.Fold)}
+                    disabled={loading}
+                    className="bg-red-600/90 hover:bg-red-700 text-white font-bold py-3 px-2 rounded-xl disabled:opacity-50 text-[11px] uppercase tracking-wider shadow-lg transition-all active:scale-95"
+                  >
+                    Fold
+                  </button>
+                  
+                  <button
+                    onClick={() => handlePlayerAction(PlayerActionType.Check)}
+                    disabled={loading || !chipsEqual}
+                    className="bg-yellow-600/90 hover:bg-yellow-700 text-white font-bold py-3 px-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed text-[11px] uppercase tracking-wider shadow-lg transition-all active:scale-95"
+                  >
+                    Check
+                  </button>
+                  
+                  <button
+                    onClick={() => handlePlayerAction(PlayerActionType.Call)}
+                    disabled={loading || callAmount === 0}
+                    className="bg-blue-600/90 hover:bg-blue-700 text-white font-bold py-3 px-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed text-[11px] uppercase tracking-wider shadow-lg transition-all active:scale-95 relative group"
+                  >
+                    Call {(callAmount / LAMPORTS_PER_SOL).toFixed(4)}
+                  </button>
+                  
+                  <button
+                    onClick={() => handlePlayerAction(PlayerActionType.Bet, customBetAmount > 0 ? customBetAmount : gameState.bigBlind / LAMPORTS_PER_SOL)}
+                    disabled={loading || (customBetAmount > 0 && !isBetAmountValid)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed text-[11px] uppercase tracking-wider shadow-lg transition-all active:scale-95"
+                  >
+                    {customBetAmount > 0 
+                      ? `Bet ${customBetAmount.toFixed(4)}` 
+                      : `Bet ${(gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Column: Game Chat Box */}
-        <div className="w-full lg:w-80 xl:w-96 flex-shrink-0 h-[400px] lg:h-full lg:max-h-[800px] flex flex-col self-center mb-16 lg:mb-0">
+        <div className="w-full lg:w-80 xl:w-96 flex-shrink-0 h-[500px] lg:h-full lg:max-h-[850px] flex flex-col">
           <div className="flex-1 w-full bg-black/40 rounded-2xl shadow-2xl overflow-hidden border border-white/10 backdrop-blur-md relative z-10 flex flex-col">
             <GameChat 
               gameId={gameId.toString()} 
@@ -952,165 +1104,6 @@ export default function GamePage() {
 
       </div>
 
-      {/* Bottom Action Bar - Only show when it's player's turn */}
-      {connected && isMyTurn && gameState.phase !== GamePhase.Waiting && gameState.phase !== GamePhase.Finished && gameState.phase !== GamePhase.Showdown && (
-        <div className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-lg border-t border-green-500 p-2 z-50">
-          <div className="max-w-3xl mx-auto">
-            {/* Bet Amount Input */}
-            <div className="mb-2">
-              <label className="block text-white text-[10px] sm:text-xs mb-1 font-semibold">Bet Amount (SOL)</label>
-              <div className="flex gap-1 items-center flex-wrap">
-                <button
-                  onClick={() => {
-                    const newValue = Math.max(0, customBetAmount - 0.01);
-                    setCustomBetAmount(newValue);
-                    setBetAmountInput(newValue > 0 ? newValue.toFixed(4) : "");
-                  }}
-                  className="bg-gray-700 hover:bg-gray-600 text-white font-bold w-7 h-7 rounded text-xs"
-                >
-                  −
-                </button>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={betAmountInput}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    // Allow empty string, numbers, and one decimal point
-                    if (value === "" || /^\d*\.?\d*$/.test(value)) {
-                      setBetAmountInput(value);
-                      const numValue = parseFloat(value);
-                      if (!isNaN(numValue) && numValue >= 0) {
-                        setCustomBetAmount(numValue);
-                      } else if (value === "" || value === ".") {
-                        setCustomBetAmount(0);
-                      }
-                    }
-                  }}
-                  onBlur={() => {
-                    // Format on blur: if empty or invalid, set to 0
-                    if (betAmountInput === "" || betAmountInput === ".") {
-                      setBetAmountInput("");
-                      setCustomBetAmount(0);
-                    } else {
-                      const numValue = parseFloat(betAmountInput);
-                      if (!isNaN(numValue) && numValue >= 0) {
-                        setBetAmountInput(numValue.toFixed(4));
-                        setCustomBetAmount(numValue);
-                      } else {
-                        setBetAmountInput("");
-                        setCustomBetAmount(0);
-                      }
-                    }
-                  }}
-                  placeholder="0.0000"
-                  className="flex-1 min-w-[100px] bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-center font-semibold text-xs"
-                />
-                <button
-                  onClick={() => {
-                    const newValue = customBetAmount + 0.01;
-                    setCustomBetAmount(newValue);
-                    setBetAmountInput(newValue.toFixed(4));
-                  }}
-                  className="bg-gray-700 hover:bg-gray-600 text-white font-bold w-7 h-7 rounded text-xs"
-                >
-                  +
-                </button>
-                {/* Quick Bet Buttons - On same line */}
-                <button
-                  onClick={() => {
-                    const value = remainingBuyIn * 0.33;
-                    setCustomBetAmount(value);
-                    setBetAmountInput(value.toFixed(4));
-                  }}
-                  className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
-                >
-                  33%
-                </button>
-                <button
-                  onClick={() => {
-                    const value = remainingBuyIn * 0.5;
-                    setCustomBetAmount(value);
-                    setBetAmountInput(value.toFixed(4));
-                  }}
-                  className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
-                >
-                  50%
-                </button>
-                <button
-                  onClick={() => {
-                    const value = remainingBuyIn * 0.75;
-                    setCustomBetAmount(value);
-                    setBetAmountInput(value.toFixed(4));
-                  }}
-                  className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
-                >
-                  75%
-                </button>
-                <button
-                  onClick={() => {
-                    setCustomBetAmount(remainingBuyIn);
-                    setBetAmountInput(remainingBuyIn.toFixed(4));
-                  }}
-                  className="bg-green-600/50 hover:bg-green-600 text-white text-[9px] font-semibold py-1 px-2 rounded"
-                >
-                  Max
-                </button>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="grid grid-cols-4 gap-1">
-              <button
-                onClick={() => handlePlayerAction(PlayerActionType.Fold)}
-                disabled={loading}
-                className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
-              >
-                ❌ Fold
-              </button>
-              
-              <button
-                onClick={() => handlePlayerAction(PlayerActionType.Check)}
-                disabled={loading || !chipsEqual}
-                title={!chipsEqual ? "Cannot check - chips must be equal" : "Check (pass without betting)"}
-                className="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform"
-              >
-                ✓ Check
-              </button>
-              
-              <button
-                onClick={() => handlePlayerAction(PlayerActionType.Call)}
-                disabled={loading || callAmount === 0}
-                title={callAmount === 0 ? "Nothing to call " : `Call ${(callAmount / LAMPORTS_PER_SOL).toFixed(4)} SOL`}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform relative group"
-              >
-                📞 Call
-                {callAmount === 0 && (
-                  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-yellow-500 text-yellow-900 text-[8px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                    Use Check instead
-                  </span>
-                )}
-              </button>
-              
-              <button
-                onClick={() => handlePlayerAction(PlayerActionType.Bet, customBetAmount > 0 ? customBetAmount : gameState.bigBlind / LAMPORTS_PER_SOL)}
-                disabled={loading || (customBetAmount > 0 && !isBetAmountValid)}
-                title={customBetAmount > 0 && !isBetAmountValid ? `Minimum bet is ${minBetAmount.toFixed(4)} SOL` : `Bet ${customBetAmount > 0 ? customBetAmount.toFixed(4) : (gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)} SOL`}
-                className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-1 sm:px-2 rounded disabled:opacity-50 disabled:cursor-not-allowed text-[10px] sm:text-xs shadow-lg transform hover:scale-105 transition-transform relative group"
-              >
-                💰 {customBetAmount > 0 
-                  ? `Bet ${customBetAmount.toFixed(4)}` 
-                  : `Bet ${(gameState.bigBlind / LAMPORTS_PER_SOL).toFixed(4)}`}
-                {customBetAmount > 0 && !isBetAmountValid && (
-                  <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-[8px] px-2 py-1 rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-                    Min: {minBetAmount.toFixed(4)} SOL
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* TEE Status Indicator (kept as small badge) */}
       {connected && authToken && teeConnection && (

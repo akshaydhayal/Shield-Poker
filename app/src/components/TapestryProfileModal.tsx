@@ -67,7 +67,7 @@ export default function TapestryProfileModal({ forceShow, onClose, message }: Ta
   return (
     <>
       {showModal && !mainProfile && !loadingMainProfile && (
-        <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black/40 backdrop-blur-lg flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[9999] w-screen h-screen bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-gradient-to-br from-green-950 to-black p-8 rounded-3xl border border-green-500/20 shadow-2xl w-full max-w-sm relative flex flex-col max-h-[90vh] overflow-y-auto my-auto shrink-0 custom-scrollbar">
             {/* Close Button Icon */}
             <button 

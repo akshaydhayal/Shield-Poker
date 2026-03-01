@@ -207,7 +207,7 @@ export default function GameChat({ gameId, player1Key, isPlayer1, isPlayer2 }: G
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type a message..."
-                  className="flex-1 bg-white/5 border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-purple-500/50"
+                  className="flex-1 bg-white/5 border border-white/40 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-white/60"
                 />
                 <button
                   type="submit"
