@@ -26,20 +26,30 @@ Shield Poker is a decentralized, P2P Texas Hold'em game built on Solana. It solv
 ### 📸 Product Screenshots
 
 <div align="center">
-  <p><b>1. Poker Lobby & Profiles</b></p>
-  <img src="https://github.com/akshaydhayal/MagicBlock-Shield-Poker/blob/main/shield-poker-vercel-app.png" alt="Lobby" width="600">
+  <p><b>1. Poker HomePage</b></p>
+  <img src="https://github.com/akshaydhayal/Shield-Poker/blob/main/demo/homepage.png" alt="Lobby" width="600">
   <br>
-  <p><i>Browse live games and view player reputations via the Tapestry badge.</i></p>
+  <p><i>Browse live games and completed games.</i></p>
   
   <p><b>2. Private Gameplay & Chat</b></p>
-  <img src="https://github.com/akshaydhayal/MagicBlock-Shield-Poker/blob/main/localhost-3000-game-4.png" alt="Game Page" width="600">
+  <img src="https://github.com/akshaydhayal/Shield-Poker/blob/main/demo/game-page.png" alt="Game Page" width="600">
   <br>
   <p><i>Joined players can chat and take actions such as fold, check, call or bet amount.</i></p>
 
-  <p><b>2. Game Result/Showdown Phase</b></p>
-  <img src="https://github.com/akshaydhayal/MagicBlock-Shield-Poker/blob/main/localhost-3000-game-3.png" alt="Execute Payroll" width="600">
+  <p><b>3. Game Result/Showdown Phase</b></p>
+  <img src="https://github.com/akshaydhayal/Shield-Poker/blob/main/demo/showdown.png" alt="Execute Payroll" width="600">
   <br>
   <p><i>See which player won and how much</i></p>
+
+  <p><b>4. Player Profile Page</b></p>
+  <img src="https://github.com/akshaydhayal/Shield-Poker/blob/main/demo/profilepage.png" alt="Execute Payroll" width="600">
+  <br>
+  <p><i>View your tapestry Player Profile Stats</i></p>
+
+  <p><b>5. Create Player Profile Modal</b></p>
+  <img src="https://github.com/akshaydhayal/Shield-Poker/blob/main/demo/player_profile_create_modal.png" alt="Execute Payroll" width="600">
+  <br>
+  <p><i>Create a Player Profile first to host or play a poker game</i></p>
 
 
 
@@ -74,7 +84,17 @@ By delegating accounts to the TEE, we achieve **~50ms execution**. Once the "Sho
 
 ---
 
-## 🚀 Architecture Diagram
+
+## 🏗️ Technical Architecture
+
+### **MagicBlock PER (Private Ephemeral Rollups)**
+Shield Poker uses the `#[ephemeral]` attribute to mark sensitive game accounts.
+- **Access Control**: Each `PlayerState` is protected by a restricted ACL. Only the authorized player can read their own hole cards within the TEE.
+- **Two-Phase Commit**: 
+    1. **TEE Phase**: Cards are dealt, and betting occurs at high speed.
+    2. **L1 Phase**: Once the game concludes, the TEE settles the state back to Solana L1 for fund distribution.
+
+#### Architecture Diagram
 
 ```mermaid
 sequenceDiagram
@@ -94,15 +114,6 @@ sequenceDiagram
     TEE->>L1: #[commit] Settle Final State
     L1->>P1/P2: Distribute Pot
 ```
-
-## 🏗️ Technical Architecture
-
-### **MagicBlock PER (Private Ephemeral Rollups)**
-Shield Poker uses the `#[ephemeral]` attribute to mark sensitive game accounts.
-- **Access Control**: Each `PlayerState` is protected by a restricted ACL. Only the authorized player can read their own hole cards within the TEE.
-- **Two-Phase Commit**: 
-    1. **TEE Phase**: Cards are dealt, and betting occurs at high speed.
-    2. **L1 Phase**: Once the game concludes, the TEE settles the state back to Solana L1 for fund distribution.
 
 ### **Tapestry Social Graph**
 - **Idempotent Stats**: Game results are pushed to Tapestry using a secure RESTful API, ensuring career stats are updated exactly once per game resolution.
